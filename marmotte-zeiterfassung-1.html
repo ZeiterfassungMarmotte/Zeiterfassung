@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Marmotte Zeiterfassung</title>
+  <style>
+    :root {
+      --bg: #1a1a1a;
+      --surface: #252525;
+      --surface2: #2e2e2e;
+      --border: #3a3a3a;
+      --accent: #c8a96e;
+      --accent-dim: #8a7048;
+      --green: #5a9e6f;
+      --red: #c0504d;
+      --yellow: #d4a843;
+      --text: #f0ece4;
+      --text-dim: #9a9590;
+      --radius: 12px;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── AUTH ── */
+    #auth-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 32px;
+    }
+    .logo {
+      text-align: center;
+    }
+    .logo h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .logo p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .auth-card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    label { font-size: 13px; color: var(--text-dim); display: block; margin-bottom: 5px; }
+    input[type=email], input[type=password], input[type=text], input[type=number], input[type=time], select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 15px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #1a1a1a; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-sm { padding: 7px 12px; font-size: 13px; width: auto; }
+    .error-msg { color: var(--red); font-size: 13px; text-align: center; }
+
+    /* ── LAYOUT ── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header .title { font-size: 16px; font-weight: 700; color: var(--accent); }
+    header .user-info { font-size: 13px; color: var(--text-dim); }
+    .logout-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--text-dim); border-radius: 6px;
+      padding: 5px 10px; font-size: 12px; cursor: pointer;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    nav button {
+      flex: 1; background: none; border: none;
+      color: var(--text-dim); padding: 12px 8px;
+      font-size: 12px; cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+      font-weight: 500;
+    }
+    nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── PAGES ── */
+    .page { display: none; flex: 1; padding: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
+    .page.active { display: block; }
+
+    /* ── STEMPEL ── */
+    .clock-display {
+      text-align: center;
+      padding: 32px 0 24px;
+    }
+    .clock-display .time {
+      font-size: 52px;
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .clock-display .date {
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      letter-spacing: 0.08em;
+    }
+    .status-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+    .status-badge.out { background: rgba(192,80,77,0.15); color: var(--red); }
+    .status-badge.in { background: rgba(90,158,111,0.15); color: var(--green); }
+    .status-badge.pause { background: rgba(212,168,67,0.15); color: var(--yellow); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .stamp-times { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .stamp-row {
+      display: flex; justify-content: space-between;
+      font-size: 14px; color: var(--text-dim);
+    }
+    .stamp-row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+    .stamp-actions { display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── ÜBERSICHT ── */
+    .month-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .month-header h2 { font-size: 18px; font-weight: 600; }
+    .month-nav { display: flex; gap: 8px; }
+    .month-nav button {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; width: 32px; height: 32px;
+      cursor: pointer; font-size: 16px;
+    }
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .stat-card .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+    .stat-card .value { font-size: 26px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .stat-card .value.positive { color: var(--green); }
+    .stat-card .value.negative { color: var(--red); }
+    .stat-card .value.neutral { color: var(--text); }
+    .entries-list { display: flex; flex-direction: column; gap: 8px; }
+    .entry-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .entry-item .entry-date { font-size: 14px; font-weight: 500; }
+    .entry-item .entry-detail { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .entry-item .entry-hours { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .entry-item .entry-hours.holiday { color: var(--yellow); }
+    .empty-state { text-align: center; padding: 48px 0; color: var(--text-dim); font-size: 14px; }
+
+    /* ── ADMIN ── */
+    .admin-section { margin-bottom: 28px; }
+    .admin-section h3 { font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 12px; }
+    .user-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .user-item .user-name { font-size: 14px; font-weight: 500; }
+    .user-item .user-email { font-size: 12px; color: var(--text-dim); }
+    .user-item .user-hours { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .user-actions { display: flex; gap: 8px; }
+
+    /* ── FERIENTAGE ── */
+    .holiday-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 100;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 100%; max-width: 400px;
+    }
+    .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 18px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions .btn { flex: 1; }
+
+    /* ── SETUP NOTICE ── */
+    .setup-banner {
+      background: rgba(200, 169, 110, 0.12);
+      border: 1px solid rgba(200, 169, 110, 0.3);
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .setup-banner strong { color: var(--accent); }
+    .setup-banner code {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: var(--text);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div id="auth-screen">
+  <div class="logo">
+    <h1>Marmotte</h1>
+    <p>Zeiterfassung</p>
+  </div>
+  <div class="auth-card">
+    <h2>Anmelden</h2>
+    <div class="form-group">
+      <label>E-Mail</label>
+      <input type="email" id="login-email" placeholder="name@marmotte.ch" autocomplete="email" />
+    </div>
+    <div class="form-group">
+      <label>Passwort</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div id="login-error" class="error-msg"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Anmelden</button>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app">
+  <header>
+    <span class="title">Marmotte</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="user-info" id="header-name"></span>
+      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+    </div>
+  </header>
+  <nav>
+    <button onclick="showPage('stamp')" id="nav-stamp" class="active">⏱ Stempeln</button>
+    <button onclick="showPage('overview')" id="nav-overview">📊 Übersicht</button>
+    <button onclick="showPage('vacation')" id="nav-vacation">🌴 Ferien</button>
+    <button onclick="showPage('admin')" id="nav-admin" style="display:none">⚙️ Admin</button>
+  </nav>
+
+  <!-- STEMPEL PAGE -->
+  <div class="page active" id="page-stamp">
+    <div class="clock-display">
+      <div class="time" id="live-clock">00:00:00</div>
+      <div class="date" id="live-date"></div>
+    </div>
+    <div class="status-card">
+      <div class="status-badge out" id="status-badge">
+        <span class="dot"></span> Nicht eingestempelt
+      </div>
+      <div class="stamp-times" id="stamp-times"></div>
+      <div class="stamp-actions" id="stamp-actions">
+        <button class="btn btn-primary" onclick="stampIn()">✓ Kommen</button>
+      </div>
+    </div>
+    <div id="today-summary" style="display:none;">
+      <div class="status-card">
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">HEUTE GEARBEITET</div>
+        <div style="font-size:28px;font-weight:600;" id="today-worked">0h 0m</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÜBERSICHT PAGE -->
+  <div class="page" id="page-overview">
+    <div class="month-header">
+      <h2 id="month-label">Juni 2025</h2>
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Soll</div>
+        <div class="value neutral" id="stat-soll">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Gearbeitet</div>
+        <div class="value neutral" id="stat-ist">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Differenz</div>
+        <div class="value" id="stat-diff">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ferientage</div>
+        <div class="value neutral" id="stat-vacation">—</div>
+      </div>
+    </div>
+    <div class="entries-list" id="entries-list">
+      <div class="empty-state">Keine Einträge</div>
+    </div>
+  </div>
+
+  <!-- FERIEN PAGE -->
+  <div class="page" id="page-vacation">
+    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferientage eintragen</h2>
+    <div class="holiday-input">
+      <div class="form-group">
+        <label>Von</label>
+        <input type="date" id="vacation-from" />
+      </div>
+      <div class="form-group">
+        <label>Bis</label>
+        <input type="date" id="vacation-to" />
+      </div>
+      <div class="form-group">
+        <label>Bemerkung (optional)</label>
+        <input type="text" id="vacation-note" placeholder="z.B. Sommerferien" />
+      </div>
+      <button class="btn btn-primary" onclick="addVacation()">Ferientage eintragen</button>
+    </div>
+    <div id="vacation-list"></div>
+  </div>
+
+  <!-- ADMIN PAGE -->
+  <div class="page" id="page-admin">
+    <div class="setup-banner" id="firebase-setup-notice">
+      <strong>⚠️ Firebase-Konfiguration fehlt</strong><br>
+      Ersetze die Konfiguration unten im Code mit deinen echten Firebase-Daten.<br>
+      Anleitung: <strong>1.</strong> Gehe auf <code>console.firebase.google.com</code> → Neues Projekt → Authentifizierung (E-Mail/Passwort) aktivieren → Firestore aktivieren → Web-App hinzufügen → Konfiguration kopieren → unten im Code einfügen.
+    </div>
+
+    <div class="admin-section">
+      <h3>Mitarbeitende</h3>
+      <div id="admin-user-list"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Neuen Mitarbeitenden hinzufügen</h3>
+      <div class="status-card">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="new-name" placeholder="Max Mustermann" />
+        </div>
+        <div class="form-group">
+          <label>E-Mail</label>
+          <input type="email" id="new-email" placeholder="max@marmotte.ch" />
+        </div>
+        <div class="form-group">
+          <label>Passwort (temporär)</label>
+          <input type="text" id="new-pass" placeholder="Marmotte2025!" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Sollstunden / Woche</label>
+            <input type="number" id="new-hours" placeholder="42" min="1" max="60" />
+          </div>
+          <div class="form-group">
+            <label>Ferientage / Jahr</label>
+            <input type="number" id="new-vacation-days" placeholder="20" min="0" max="40" />
+          </div>
+        </div>
+        <div id="admin-error" class="error-msg" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary" onclick="createUser()">Mitarbeitenden erstellen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Eintrag bearbeiten -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>Eintrag bearbeiten</h3>
+    <input type="hidden" id="edit-entry-id" />
+    <div class="form-group">
+      <label>Kommen</label>
+      <input type="time" id="edit-start" />
+    </div>
+    <div class="form-group">
+      <label>Pause von</label>
+      <input type="time" id="edit-pause-start" />
+    </div>
+    <div class="form-group">
+      <label>Pause bis</label>
+      <input type="time" id="edit-pause-end" />
+    </div>
+    <div class="form-group">
+      <label>Gehen</label>
+      <input type="time" id="edit-end" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FIREBASE + APP LOGIC ══ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ════════════════════════════════════════════════
+  // 🔧 FIREBASE KONFIGURATION – HIER ANPASSEN
+  // ════════════════════════════════════════════════
+  const firebaseConfig = {
+    apiKey: "AIzaSyAoMkNMiVUWOsuPN_iZQXjG0beIfGSJKjA",
+    authDomain: "zeiterfassung-marmotte-36b6b.firebaseapp.com",
+    projectId: "zeiterfassung-marmotte-36b6b",
+    storageBucket: "zeiterfassung-marmotte-36b6b.firebasestorage.app",
+    messagingSenderId: "296588907627",
+    appId: "1:296588907627:web:2e42ab2ae6b00bf3f9cd2e"
+  };
+  // ════════════════════════════════════════════════
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let currentProfile = null;
+  let overviewMonth = new Date().getMonth();
+  let overviewYear = new Date().getFullYear();
+
+  // ── LIVE CLOCK ──
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('live-clock').textContent =
+      now.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('live-date').textContent =
+      now.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── AUTH STATE ──
+  onAuthStateChanged(auth, async user => {
+    if (user) {
+      currentUser = user;
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      currentProfile = snap.exists() ? snap.data() : { name: user.email, role: 'employee', weeklyHours: 42, vacationDaysPerYear: 20 };
+      document.getElementById('header-name').textContent = currentProfile.name || user.email;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      if (currentProfile.role === 'admin') {
+        document.getElementById('nav-admin').style.display = 'block';
+        document.getElementById('firebase-setup-notice').style.display =
+          firebaseConfig.apiKey === 'DEIN_API_KEY' ? 'block' : 'none';
+        loadAdminUsers();
+      }
+      loadTodayStamp();
+      loadOverview();
+      loadVacationList();
+    } else {
+      currentUser = null;
+      currentProfile = null;
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+  });
+
+  // ── LOGIN ──
+  window.doLogin = async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    document.getElementById('login-error').textContent = '';
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (e) {
+      document.getElementById('login-error').textContent = 'Falsche E-Mail oder Passwort.';
+    }
+  };
+
+  window.doLogout = () => signOut(auth);
+
+  // ── NAVIGATION ──
+  window.showPage = (page) => {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('nav-' + page).classList.add('active');
+    if (page === 'overview') loadOverview();
+    if (page === 'vacation') loadVacationList();
+    if (page === 'admin') loadAdminUsers();
+  };
+
+  // ── HELPERS ──
+  function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function minutesToHM(min) {
+    if (min === null || min === undefined) return '—';
+    const sign = min < 0 ? '-' : '';
+    const abs = Math.abs(min);
+    return `${sign}${Math.floor(abs/60)}h ${abs%60}m`;
+  }
+
+  function timeToMin(t) {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function minToTimeStr(m) {
+    if (m === null) return '';
+    return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  }
+
+  function calcWorkedMinutes(entry) {
+    if (!entry.startMin || !entry.endMin) return 0;
+    let worked = entry.endMin - entry.startMin;
+    if (entry.pauseStartMin && entry.pauseEndMin) {
+      worked -= (entry.pauseEndMin - entry.pauseStartMin);
+    }
+    return Math.max(0, worked);
+  }
+
+  // Sollstunden für einen Monat (vereinfacht: Wochentage × Tagessoll)
+  function getSollMinutes(year, month) {
+    if (!currentProfile) return 0;
+    const weeklyH = currentProfile.weeklyHours || 42;
+    const dailyMin = (weeklyH / 5) * 60;
+    // Arbeitstage im Monat
+    let count = 0;
+    const d = new Date(year, month, 1);
+    while (d.getMonth() === month) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.round(count * dailyMin);
+  }
+
+  // ── STEMPELN ──
+  async function loadTodayStamp() {
+    const key = todayKey();
+    const ref = doc(db, 'timeEntries', `${currentUser.uid}_${key}`);
+    const snap = await getDoc(ref);
+    renderStampUI(snap.exists() ? snap.data() : null);
+  }
+
+  function renderStampUI(entry) {
+    const badge = document.getElementById('status-badge');
+    const times = document.getElementById('stamp-times');
+    const actions = document.getElementById('stamp-actions');
+    const todaySummary = document.getElementById('today-summary');
+
+    if (!entry || !entry.startMin) {
+      badge.className = 'status-badge out';
+      badge.innerHTML = '<span class="dot"></span> Nicht eingestempelt';
+      times.innerHTML = '';
+      actions.innerHTML = '<button class="btn btn-primary" onclick="stampIn()">✓ Kommen</button>';
+      todaySummary.style.display = 'none';
+      return;
+    }
+
+    let rows = `<div class="stamp-row"><span>Kommen</span><span>${minToTimeStr(entry.startMin)}</span></div>`;
+
+    if (entry.pauseStartMin) {
+      rows += `<div class="stamp-row"><span>Pause von</span><span>${minToTimeStr(entry.pauseStartMin)}</span></div>`;
+    }
+    if (entry.pauseEndMin) {
+      rows += `<div class="stamp-row"><span>Pause bis</span><span>${minToTimeStr(entry.pauseEndMin)}</span></div>`;
+    }
+    if (entry.endMin) {
+      rows += `<div class="stamp-row"><span>Gehen</span><span>${minToTimeStr(entry.endMin)}</span></div>`;
+    }
+    times.innerHTML = rows;
+
+    if (entry.endMin) {
+      badge.className = 'status-badge out';
+      badge.innerHTML = '<span class="dot"></span> Ausgestempelt';
+      actions.innerHTML = '';
+      const worked = calcWorkedMinutes(entry);
+      todaySummary.style.display = 'block';
+      document.getElementById('today-worked').textContent = minutesToHM(worked);
+    } else if (entry.pauseStartMin && !entry.pauseEndMin) {
+      badge.className = 'status-badge pause';
+      badge.innerHTML = '<span class="dot"></span> Pause';
+      actions.innerHTML = '<button class="btn btn-primary" onclick="stampPauseEnd()">▶ Pause beenden</button>';
+      todaySummary.style.display = 'none';
+    } else {
+      badge.className = 'status-badge in';
+      badge.innerHTML = '<span class="dot"></span> Eingestempelt';
+      actions.innerHTML = `
+        <button class="btn btn-secondary" onclick="stampPauseStart()">⏸ Pause</button>
+        <button class="btn btn-danger" onclick="stampOut()">✕ Gehen</button>`;
+      todaySummary.style.display = 'none';
+    }
+  }
+
+  function nowMin() {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }
+
+  async function getOrCreateTodayEntry() {
+    const key = todayKey();
+    const ref = doc(db, 'timeEntries', `${currentUser.uid}_${key}`);
+    const snap = await getDoc(ref);
+    return { ref, data: snap.exists() ? snap.data() : null, key };
+  }
+
+  window.stampIn = async () => {
+    const key = todayKey();
+    const ref = doc(db, 'timeEntries', `${currentUser.uid}_${key}`);
+    const entry = { uid: currentUser.uid, date: key, startMin: nowMin() };
+    await setDoc(ref, entry);
+    renderStampUI(entry);
+  };
+
+  window.stampPauseStart = async () => {
+    const { ref, data } = await getOrCreateTodayEntry();
+    const updated = { ...data, pauseStartMin: nowMin() };
+    await updateDoc(ref, { pauseStartMin: nowMin() });
+    renderStampUI(updated);
+  };
+
+  window.stampPauseEnd = async () => {
+    const { ref, data } = await getOrCreateTodayEntry();
+    const updated = { ...data, pauseEndMin: nowMin() };
+    await updateDoc(ref, { pauseEndMin: nowMin() });
+    renderStampUI(updated);
+  };
+
+  window.stampOut = async () => {
+    const { ref, data } = await getOrCreateTodayEntry();
+    const updated = { ...data, endMin: nowMin() };
+    await updateDoc(ref, { endMin: nowMin() });
+    renderStampUI(updated);
+  };
+
+  // ── ÜBERSICHT ──
+  window.changeMonth = (dir) => {
+    overviewMonth += dir;
+    if (overviewMonth > 11) { overviewMonth = 0; overviewYear++; }
+    if (overviewMonth < 0) { overviewMonth = 11; overviewYear--; }
+    loadOverview();
+  };
+
+  async function loadOverview() {
+    const monthNames = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    document.getElementById('month-label').textContent = `${monthNames[overviewMonth]} ${overviewYear}`;
+
+    const startKey = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-01`;
+    const endKey = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-31`;
+
+    const q = query(
+      collection(db, 'timeEntries'),
+      where('uid', '==', currentUser.uid),
+      where('date', '>=', startKey),
+      where('date', '<=', endKey),
+      orderBy('date')
+    );
+    const snap = await getDocs(q);
+    const entries = snap.docs.map(d => d.data());
+
+    // vacation entries
+    const vq = query(
+      collection(db, 'vacations'),
+      where('uid', '==', currentUser.uid)
+    );
+    const vsnap = await getDocs(vq);
+    const vacations = vsnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // count vacation days in this month
+    let vacDays = 0;
+    vacations.forEach(v => {
+      const from = new Date(v.from);
+      const to = new Date(v.to);
+      const d = new Date(overviewYear, overviewMonth, 1);
+      while (d.getMonth() === overviewMonth) {
+        if (d >= from && d <= to && d.getDay() !== 0 && d.getDay() !== 6) vacDays++;
+        d.setDate(d.getDate() + 1);
+      }
+    });
+
+    let totalWorked = 0;
+    entries.forEach(e => { totalWorked += calcWorkedMinutes(e); });
+
+    const sollMin = getSollMinutes(overviewYear, overviewMonth);
+    const vacMin = vacDays * ((currentProfile?.weeklyHours || 42) / 5 * 60);
+    const diffMin = totalWorked + vacMin - sollMin;
+
+    document.getElementById('stat-soll').textContent = minutesToHM(sollMin);
+    document.getElementById('stat-ist').textContent = minutesToHM(totalWorked);
+    const diffEl = document.getElementById('stat-diff');
+    diffEl.textContent = (diffMin >= 0 ? '+' : '') + minutesToHM(diffMin);
+    diffEl.className = 'value ' + (diffMin >= 0 ? 'positive' : 'negative');
+    document.getElementById('stat-vacation').textContent = vacDays + ' Tag' + (vacDays !== 1 ? 'e' : '');
+
+    // entries list
+    const list = document.getElementById('entries-list');
+    if (entries.length === 0 && vacDays === 0) {
+      list.innerHTML = '<div class="empty-state">Keine Einträge für diesen Monat</div>';
+      return;
+    }
+    list.innerHTML = '';
+    entries.forEach(e => {
+      const worked = calcWorkedMinutes(e);
+      const d = new Date(e.date);
+      const dateStr = d.toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'short' });
+      let detail = minToTimeStr(e.startMin);
+      if (e.pauseStartMin) detail += ` · Pause ${minToTimeStr(e.pauseStartMin)}–${minToTimeStr(e.pauseEndMin)||'?'}`;
+      if (e.endMin) detail += ` · ${minToTimeStr(e.endMin)}`;
+      const item = document.createElement('div');
+      item.className = 'entry-item';
+      item.innerHTML = `
+        <div>
+          <div class="entry-date">${dateStr}</div>
+          <div class="entry-detail">${detail}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="entry-hours">${minutesToHM(worked)}</span>
+          <button class="btn btn-secondary btn-sm" onclick="openEdit('${e.date}')">✎</button>
+        </div>`;
+      list.appendChild(item);
+    });
+  }
+
+  // ── EDIT MODAL ──
+  window.openEdit = async (date) => {
+    const ref = doc(db, 'timeEntries', `${currentUser.uid}_${date}`);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const e = snap.data();
+    document.getElementById('edit-entry-id').value = date;
+    document.getElementById('edit-start').value = minToTimeStr(e.startMin);
+    document.getElementById('edit-pause-start').value = minToTimeStr(e.pauseStartMin);
+    document.getElementById('edit-pause-end').value = minToTimeStr(e.pauseEndMin);
+    document.getElementById('edit-end').value = minToTimeStr(e.endMin);
+    document.getElementById('edit-modal').classList.add('open');
+  };
+
+  window.closeModal = () => document.getElementById('edit-modal').classList.remove('open');
+
+  window.saveEdit = async () => {
+    const date = document.getElementById('edit-entry-id').value;
+    const ref = doc(db, 'timeEntries', `${currentUser.uid}_${date}`);
+    await updateDoc(ref, {
+      startMin: timeToMin(document.getElementById('edit-start').value) || null,
+      pauseStartMin: timeToMin(document.getElementById('edit-pause-start').value) || null,
+      pauseEndMin: timeToMin(document.getElementById('edit-pause-end').value) || null,
+      endMin: timeToMin(document.getElementById('edit-end').value) || null,
+    });
+    closeModal();
+    loadOverview();
+    if (date === todayKey()) loadTodayStamp();
+  };
+
+  // ── FERIEN ──
+  window.addVacation = async () => {
+    const from = document.getElementById('vacation-from').value;
+    const to = document.getElementById('vacation-to').value;
+    const note = document.getElementById('vacation-note').value;
+    if (!from || !to) return;
+    const id = `${currentUser.uid}_vac_${Date.now()}`;
+    await setDoc(doc(db, 'vacations', id), { uid: currentUser.uid, from, to, note });
+    document.getElementById('vacation-from').value = '';
+    document.getElementById('vacation-to').value = '';
+    document.getElementById('vacation-note').value = '';
+    loadVacationList();
+  };
+
+  async function loadVacationList() {
+    const q = query(collection(db, 'vacations'), where('uid', '==', currentUser.uid));
+    const snap = await getDocs(q);
+    const list = document.getElementById('vacation-list');
+    if (snap.empty) { list.innerHTML = '<div class="empty-state">Keine Ferieneinträge</div>'; return; }
+    list.innerHTML = '';
+    snap.docs.forEach(d => {
+      const v = d.data();
+      const item = document.createElement('div');
+      item.className = 'entry-item';
+      item.innerHTML = `
+        <div>
+          <div class="entry-date">🌴 ${v.from} – ${v.to}</div>
+          ${v.note ? `<div class="entry-detail">${v.note}</div>` : ''}
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">✕</button>`;
+      list.appendChild(item);
+    });
+  }
+
+  window.deleteVacation = async (id) => {
+    await deleteDoc(doc(db, 'vacations', id));
+    loadVacationList();
+  };
+
+  // ── ADMIN ──
+  async function loadAdminUsers() {
+    const snap = await getDocs(collection(db, 'users'));
+    const list = document.getElementById('admin-user-list');
+    list.innerHTML = '';
+    snap.docs.forEach(d => {
+      const u = d.data();
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      item.innerHTML = `
+        <div>
+          <div class="user-name">${u.name}</div>
+          <div class="user-email">${u.email}</div>
+          <div class="user-hours">${u.weeklyHours}h/Woche · ${u.vacationDaysPerYear} Ferientage</div>
+        </div>
+        <div class="user-actions">
+          <button class="btn btn-secondary btn-sm" onclick="editUserHours('${d.id}', ${u.weeklyHours}, ${u.vacationDaysPerYear})">✎</button>
+        </div>`;
+      list.appendChild(item);
+    });
+  }
+
+  window.editUserHours = async (uid, currentH, currentV) => {
+    const h = prompt(`Sollstunden/Woche für diesen Mitarbeitenden:`, currentH);
+    if (h === null) return;
+    const v = prompt(`Ferientage/Jahr:`, currentV);
+    if (v === null) return;
+    await updateDoc(doc(db, 'users', uid), {
+      weeklyHours: Number(h),
+      vacationDaysPerYear: Number(v)
+    });
+    loadAdminUsers();
+  };
+
+  window.createUser = async () => {
+    const name = document.getElementById('new-name').value.trim();
+    const email = document.getElementById('new-email').value.trim();
+    const pass = document.getElementById('new-pass').value;
+    const hours = Number(document.getElementById('new-hours').value);
+    const vacDays = Number(document.getElementById('new-vacation-days').value);
+    const err = document.getElementById('admin-error');
+    err.textContent = '';
+    if (!name || !email || !pass || !hours) { err.textContent = 'Bitte alle Felder ausfüllen.'; return; }
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        name, email, weeklyHours: hours, vacationDaysPerYear: vacDays, role: 'employee'
+      });
+      // sign back in as admin
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-email').value = '';
+      document.getElementById('new-pass').value = '';
+      document.getElementById('new-hours').value = '';
+      document.getElementById('new-vacation-days').value = '';
+      loadAdminUsers();
+    } catch (e) {
+      err.textContent = 'Fehler: ' + e.message;
+    }
+  };
+
+  // Enter key for login
+  document.getElementById('login-pass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') window.doLogin();
+  });
+</script>
+</body>
+</html>
