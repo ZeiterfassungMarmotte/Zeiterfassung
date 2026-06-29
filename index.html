@@ -1433,8 +1433,9 @@
     const holidays = getBernHolidays(new Date(fromVal+'T12:00:00').getFullYear());
     const holidayMap = {}; holidays.forEach(h => holidayMap[h.date]=h.name);
 
-    // Build vacation day set (Mo-Fr only)
-    const vacDaySet = new Set();
+    // Build vacation day set (all days incl Sa/So for display, Mo-Fr for soll)
+    const vacDaySet = new Set(); // all days for display
+    const vacWorkDaySet = new Set(); // Mo-Fr only for soll
     vacations.forEach(v => {
       const f=v.from, t=v.to;
       const d = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
@@ -1442,7 +1443,10 @@
       while(d<=end){
         const dow=d.getDay();
         const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidayMap[key])vacDaySet.add(key);
+        if(key>=f&&key<=t&&!holidayMap[key]){
+          vacDaySet.add(key);
+          if(dow!==0&&dow!==6)vacWorkDaySet.add(key);
+        }
         d.setDate(d.getDate()+1);
       }
     });
@@ -1450,27 +1454,33 @@
     // Calculate totals
     let totalWorked = 0;
     Object.values(entryMap).forEach(e => totalWorked += calcWorked(e));
-    const vacDaysInPeriod = vacDaySet.size;
+    const vacDaysInPeriod = vacWorkDaySet.size; // only Mo-Fr for calculations
     const fromDate = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
     const toDate = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
     const monthName = fromDate.toLocaleDateString('de-CH', {month:'long', year:'numeric'});
-    const soll = isStunden ? null : getSoll(fromDate.getFullYear(), fromDate.getMonth(), u);
-    const nettoSoll = isStunden ? null : soll - vacDaysInPeriod * dailyMin;
-    const diff = isStunden ? null : totalWorked - nettoSoll;
-    const remainingVacDays = isStunden ? null : (u.vacationDaysPerYear||0) - vacDaysInPeriod;
 
-    // Build sick day set for PDF
-    const pdfSickDaySet = new Set();
+    // Build sick day set for PDF (all days for display, Mo-Fr for soll)
+    const pdfSickDaySet = new Set(); // all days
+    const pdfSickWorkDaySet = new Set(); // Mo-Fr only
     const sickSnapPdf = await getDocs(query(collection(db,'sickDays'), where('uid','==',uid)));
     sickSnapPdf.docs.forEach(d=>{
       const v=d.data(); const f=v.from, t=v.to;
       const cur2=new Date(fromDate);
       while(cur2<=toDate){
+        const dow=cur2.getDay();
         const key=`${cur2.getFullYear()}-${String(cur2.getMonth()+1).padStart(2,'0')}-${String(cur2.getDate()).padStart(2,'0')}`;
-        if(key>=f&&key<=t)pdfSickDaySet.add(key);
+        if(key>=f&&key<=t){
+          pdfSickDaySet.add(key);
+          if(dow!==0&&dow!==6&&!holidayMap[key])pdfSickWorkDaySet.add(key);
+        }
         cur2.setDate(cur2.getDate()+1);
       }
     });
+
+    const soll = isStunden ? null : getSoll(fromDate.getFullYear(), fromDate.getMonth(), u);
+    const nettoSoll = isStunden ? null : soll - vacDaysInPeriod*dailyMin - pdfSickWorkDaySet.size*dailyMin;
+    const diff = isStunden ? null : totalWorked - nettoSoll;
+    const remainingVacDays = isStunden ? null : (u.vacationDaysPerYear||0) - vacDaysInPeriod;
     const allDays = [];
     const cur = new Date(fromDate);
     while(cur<=toDate){
