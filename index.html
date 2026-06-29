@@ -762,6 +762,7 @@
       });
       const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin*pct);
       const cumDiff=cumWorked-cumNettoSoll;
+      console.log('GLEITZEIT DEBUG:', {cumWorked, cumSollDays, cumSoll, cumVacDays, vacMin: Math.round(cumVacDays*dailyMin*pct), cumNettoSoll, cumDiff, dailyMin, pct});
       const overCard=document.createElement('div');
       overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
