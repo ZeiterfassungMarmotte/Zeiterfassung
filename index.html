@@ -1155,6 +1155,7 @@
 
   window.openUserEdit = (uid) => {
     const u=allUsers.find(x=>x.id===uid); if(!u)return;
+    const empType = u.employmentType || 'festangestellt';
     document.getElementById('ue-uid').value=uid;
     document.getElementById('ue-name').value=u.name||'';
     document.getElementById('ue-personnel').value=u.personnelNumber||'';
@@ -1167,7 +1168,6 @@
     document.getElementById('ue-stunden-startdate-group').style.display = empType==='stundenlöhner' ? 'block' : 'none';
     document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
     document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
-    const empType = u.employmentType || 'festangestellt';
     document.querySelector(`input[name="ue-emp-type"][value="${empType}"]`).checked=true;
     window.toggleUeEmpType();
     document.getElementById('user-edit-modal').classList.add('open');
