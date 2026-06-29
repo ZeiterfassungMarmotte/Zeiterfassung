@@ -1329,18 +1329,16 @@
       cur.setDate(cur.getDate()+1);
     }
 
-    // PDF setup - Landscape A4
+    // PDF setup - Portrait A4
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const W = 297, H = 210, margin = 15;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, margin = 15;
     const dark = [26, 26, 26];
     const accent = [200, 169, 110];
     const dim = [140, 135, 130];
     const green = [90, 158, 111];
     const red = [192, 80, 77];
     let y = margin;
-    let pageNum = 1;
-    const totalPages = () => doc.getNumberOfPages();
 
     const addFooter = () => {
       const pg = doc.getNumberOfPages();
@@ -1349,17 +1347,19 @@
     };
 
     const checkNewPage = (needed=8) => {
-      if(y + needed > H - 15){
+      if(y + needed > H - 20){
         addFooter();
         doc.addPage();
         y = margin;
-        pageNum++;
       }
     };
 
     // ── TITEL ──
-    doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
-    doc.text('Marmotte – Monatsbericht Zeiterfassung', margin, y+7); y += 14;
+    doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Marmotte', margin, y+8);
+    doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.setTextColor(...accent);
+    doc.text('Monatsbericht Zeiterfassung', margin, y+16);
+    y += 24;
 
     // ── MITARBEITER INFO (einfacher Text) ──
     doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
@@ -1397,7 +1397,7 @@
 
     // ── TABELLEN-HEADER ──
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
-    const col = { date:margin, von:margin+45, bis:margin+100, pause:margin+155, worked:W-margin-20 };
+    const col = { date:margin, von:margin+40, bis:margin+80, pause:margin+120, worked:W-margin-20 };
     doc.text('Datum', col.date, y);
     doc.text('Von / Status', col.von, y);
     doc.text('Bis', col.bis, y);
@@ -1451,6 +1451,18 @@
     doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
     doc.text('Total gearbeitet:', margin, y);
     doc.text(minutesToHM(totalWorked), col.worked, y, {align:'right'});
+    y += 20;
+
+    // ── UNTERSCHRIFTEN ──
+    checkNewPage(25);
+    const sigW = (W - 2*margin - 15) / 2;
+    doc.setDrawColor(...dark); doc.setLineWidth(0.3);
+    doc.line(margin, y, margin+sigW, y);
+    doc.line(W-margin-sigW, y, W-margin, y);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
+    doc.text('Arbeitgeber: Unterschrift / Datum', margin, y+5);
+    doc.text('Arbeitnehmer: Unterschrift / Datum', W-margin-sigW, y+5);
+    y += 15;
 
     addFooter();
 
