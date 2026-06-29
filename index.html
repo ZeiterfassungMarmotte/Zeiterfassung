@@ -662,6 +662,8 @@
     loadVacationRequests(currentRequestFilter);
     loadPendingBadge();
   };
+
+  window.approveVacation = async (id) => {
     await updateDoc(doc(db,'vacations',id),{status:'approved'});
     loadVacationRequests(currentRequestFilter);
     loadPendingBadge();
