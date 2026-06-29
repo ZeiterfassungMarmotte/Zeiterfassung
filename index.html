@@ -285,8 +285,7 @@
             <select id="filter-dept">
               <option value="">Alle</option>
               <option>Bäckerei</option>
-              <option>Laden</option>
-              <option>Tearoom</option>
+              <option>Laden & Tearoom</option>
               <option>Dorfladen</option>
             </select>
           </div>
@@ -307,7 +306,7 @@
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
           <select id="live-filter-dept" onchange="loadLiveStamps()" style="width:auto;">
             <option value="">Alle Abteilungen</option>
-            <option>Bäckerei</option><option>Laden</option><option>Tearoom</option><option>Dorfladen</option>
+            <option>Bäckerei</option><option>Laden & Tearoom</option><option>Dorfladen</option>
           </select>
         </div>
         <div id="live-stamp-list"><div class="empty-state">Lade...</div></div>
@@ -355,10 +354,13 @@
             <label>Abteilungen</label>
             <div class="dept-check-group" id="new-dept-group">
               <label class="dept-check"><input type="checkbox" value="Bäckerei" onchange="toggleDeptCheck(this)"> Bäckerei</label>
-              <label class="dept-check"><input type="checkbox" value="Laden" onchange="toggleDeptCheck(this)"> Laden</label>
-              <label class="dept-check"><input type="checkbox" value="Tearoom" onchange="toggleDeptCheck(this)"> Tearoom</label>
+              <label class="dept-check"><input type="checkbox" value="Laden & Tearoom" onchange="toggleDeptCheck(this)"> Laden & Tearoom</label>
               <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
             </div>
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+            <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
+            <input type="checkbox" id="new-can-vacation" checked style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
           </div>
           <div id="admin-error" class="error-msg" style="margin-bottom:8px;"></div>
           <div id="admin-success" class="success-msg" style="margin-bottom:8px;"></div>
@@ -414,8 +416,7 @@
       <label>Abteilungen</label>
       <div class="dept-check-group" id="ue-dept-group">
         <label class="dept-check"><input type="checkbox" value="Bäckerei" onchange="toggleDeptCheck(this)"> Bäckerei</label>
-        <label class="dept-check"><input type="checkbox" value="Laden" onchange="toggleDeptCheck(this)"> Laden</label>
-        <label class="dept-check"><input type="checkbox" value="Tearoom" onchange="toggleDeptCheck(this)"> Tearoom</label>
+        <label class="dept-check"><input type="checkbox" value="Laden & Tearoom" onchange="toggleDeptCheck(this)"> Laden & Tearoom</label>
         <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
       </div>
     </div>
@@ -1081,6 +1082,7 @@
     document.getElementById('new-fixed-fields').style.display = isStunden ? 'none' : 'block';
     document.getElementById('new-type-fest-label').classList.toggle('checked', !isStunden);
     document.getElementById('new-type-stunden-label').classList.toggle('checked', isStunden);
+    document.getElementById('new-can-vacation').checked = !isStunden;
   };
 
   window.toggleUeEmpType = () => {
@@ -1100,14 +1102,16 @@
     const vac = isStunden ? 0 : Number(document.getElementById('new-vacation-days').value);
     const startDate = document.getElementById('new-startdate').value || null;
     const depts=[...document.querySelectorAll('#new-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
+    const canUseVacation = document.getElementById('new-can-vacation').checked;
     const err=document.getElementById('admin-error'), suc=document.getElementById('admin-success');
     err.textContent='';suc.textContent='';
     if(!name||!email||!pass||(!isStunden&&!hours)){err.textContent='Bitte alle Pflichtfelder ausfüllen.';return;}
     try{
       const cred=await createUserWithEmailAndPassword(auth,email,pass);
-      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,fulltimeHours,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role:'employee',active:true,departments:depts,canUseVacation:!isStunden,employmentType:empType});
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,fulltimeHours,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role:'employee',active:true,departments:depts,canUseVacation,employmentType:empType});
       ['new-name','new-personnel','new-email','new-pass','new-percent','new-fulltime-hours','new-hours','new-vacation-days','new-startdate'].forEach(id=>document.getElementById(id).value='');
       document.querySelectorAll('#new-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.dept-check').classList.remove('checked');});
+      document.getElementById('new-can-vacation').checked=true;
       document.querySelector('input[name="new-emp-type"][value="festangestellt"]').checked=true;
       window.toggleNewEmpType();
       suc.textContent=`✓ ${name} wurde erstellt!`; setTimeout(()=>suc.textContent='',3000);
