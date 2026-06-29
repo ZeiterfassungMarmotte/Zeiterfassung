@@ -1378,12 +1378,12 @@
       doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, margin+60, y);
       const diffColor = diff>=0 ? green : red;
       doc.setTextColor(...diffColor);
-      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+130, y);
+      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+120, y);
       doc.setTextColor(...dark);
       y += 7;
       doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, margin, y);
-      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, margin+80, y);
-      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, margin+170, y);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, margin+65, y);
+      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, margin+130, y);
       y += 10;
     } else {
       doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
@@ -1397,11 +1397,19 @@
 
     // ── TABELLEN-HEADER ──
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
-    const col = { date:margin, von:margin+40, bis:margin+80, pause:margin+120, worked:W-margin-20 };
+    const col = {
+      date: margin,
+      von: margin+38,
+      pauseVon: margin+60,
+      pauseBis: margin+85,
+      bis: margin+110,
+      worked: W-margin
+    };
     doc.text('Datum', col.date, y);
-    doc.text('Von / Status', col.von, y);
+    doc.text('Von', col.von, y);
+    doc.text('Pause von', col.pauseVon, y);
+    doc.text('Pause bis', col.pauseBis, y);
     doc.text('Bis', col.bis, y);
-    doc.text('Pause', col.pause, y);
     doc.text('Gearbeitet', col.worked, y, {align:'right'});
     y += 4;
     doc.setDrawColor(200,195,190); doc.setLineWidth(0.2);
@@ -1417,17 +1425,17 @@
 
       if(entryMap[key]){
         const e=entryMap[key], w=calcWorked(e);
-        const pause=e.pauseStartMin?`${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`:'—';
         doc.text(ds, col.date, y);
         doc.text(minToStr(e.startMin)||'—', col.von, y);
+        doc.text(e.pauseStartMin ? minToStr(e.pauseStartMin) : '—', col.pauseVon, y);
+        doc.text(e.pauseEndMin ? minToStr(e.pauseEndMin) : '—', col.pauseBis, y);
         doc.text(minToStr(e.endMin)||'—', col.bis, y);
-        doc.text(pause, col.pause, y);
         doc.setFont('helvetica','bold');
         doc.text(minutesToHM(w), col.worked, y, {align:'right'});
         doc.setFont('helvetica','normal');
       } else if(holidayMap[key]){
         doc.text(ds, col.date, y);
-        doc.setTextColor(...[200,169,110]);
+        doc.setTextColor(...accent);
         doc.text(`Feiertag: ${holidayMap[key]}`, col.von, y);
         doc.setTextColor(...dark);
       } else if(vacDaySet.has(key)){
@@ -1462,11 +1470,8 @@
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
     doc.text('Arbeitgeber: Unterschrift / Datum', margin, y+5);
     doc.text('Arbeitnehmer: Unterschrift / Datum', W-margin-sigW, y+5);
-    y += 15;
 
-    addFooter();
-
-    // Update all page footers with total pages
+    // ── FOOTER (alle Seiten) ──
     const total = doc.getNumberOfPages();
     for(let p=1;p<=total;p++){
       doc.setPage(p);
