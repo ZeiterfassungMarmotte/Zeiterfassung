@@ -808,16 +808,17 @@
         const f=v.from, t=v.to;
         const d=new Date(overviewYear,overviewMonth,1);
         while(d.getMonth()===overviewMonth){
+          const dow=d.getDay();
           const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&!holidays.includes(key))vacDays++;
+          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidays.includes(key))vacDays++;
           d.setDate(d.getDate()+1);
         }
       });
       const fulltimeH = Number(currentProfile?.fulltimeHours) || 42.5;
       const percent = Number(currentProfile?.employmentPercent) || 100;
       const dailyMin = (fulltimeH / 5) * 60;
-      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, diff=worked+vacMin-soll;
-      document.getElementById('stat-soll').textContent=minutesToHM(soll);
+      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, nettoSoll=soll-vacMin, diff=worked-nettoSoll;
+      document.getElementById('stat-soll').textContent=minutesToHM(nettoSoll);
       document.getElementById('stat-ist').textContent=minutesToHM(worked);
       const de=document.getElementById('stat-diff'); de.textContent=(diff>=0?'+':'')+minutesToHM(diff); de.className='value '+(diff>=0?'positive':'negative');
       document.getElementById('stat-vacation').textContent=vacDays+'T';
