@@ -230,7 +230,7 @@
       <div class="stat-card"><div class="label">Soll</div><div class="value neutral" id="stat-soll">—</div></div>
       <div class="stat-card"><div class="label">Gearbeitet</div><div class="value neutral" id="stat-ist">—</div></div>
       <div class="stat-card"><div class="label">Differenz</div><div class="value" id="stat-diff">—</div></div>
-      <div class="stat-card"><div class="label">Ferientage</div><div class="value neutral" id="stat-vacation">—</div></div>
+      <div class="stat-card"><div class="label">Ferientage bezogen</div><div class="value neutral" id="stat-vacation">—</div></div>
     </div>
     <div class="entries-list" id="entries-list"><div class="empty-state">Keine Einträge</div></div>
   </div>
@@ -693,16 +693,24 @@
     } else {
       const vsnap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
       const vacations=vsnap.docs.map(d=>({id:d.id,...d.data()}));
+      const holidays=getBernHolidays(overviewYear).map(h=>h.date);
       let vacDays=0;
-      vacations.forEach(v=>{const f=new Date(v.from),t=new Date(v.to),d=new Date(overviewYear,overviewMonth,1);while(d.getMonth()===overviewMonth){if(d>=f&&d<=t&&d.getDay()!==0&&d.getDay()!==6)vacDays++;d.setDate(d.getDate()+1);}});
-      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*((Number(currentProfile?.weeklyHours)||42)/5*60), diff=worked+vacMin-soll;
+      vacations.forEach(v=>{
+        const f=new Date(v.from+'T12:00:00'), t=new Date(v.to+'T12:00:00');
+        const d=new Date(overviewYear,overviewMonth,1);
+        while(d.getMonth()===overviewMonth){
+          const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          if(d>=f&&d<=t&&!holidays.includes(key))vacDays++;
+          d.setDate(d.getDate()+1);
+        }
+      });
+      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*((Number(currentProfile?.weeklyHours)||42.5)/5*60), diff=worked+vacMin-soll;
       document.getElementById('stat-soll').textContent=minutesToHM(soll);
       document.getElementById('stat-ist').textContent=minutesToHM(worked);
       const de=document.getElementById('stat-diff'); de.textContent=(diff>=0?'+':'')+minutesToHM(diff); de.className='value '+(diff>=0?'positive':'negative');
       document.getElementById('stat-vacation').textContent=vacDays+'T';
     }
     const list=document.getElementById('entries-list');
-    if(!entries.length){list.innerHTML='<div class="empty-state">Keine Einträge</div>';return;}
     list.innerHTML='';
 
     // Kumuliertes Überstundenkonto (nur Festangestellte)
@@ -712,36 +720,73 @@
       const allSnap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',currentUser.uid), where('date','>=',startDate), where('date','<=',endOfMonth)));
       const allEntries = allSnap.docs.map(d=>d.data());
       let cumWorked = 0; allEntries.forEach(e=>cumWorked+=calcWorked(e));
-      // Calculate cumulative soll from startDate to end of current month
       const startD = new Date(startDate+'T12:00:00');
-      const endD = new Date(overviewYear, overviewMonth+1, 0); // last day of month
-      const holidays = new Set();
-      for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>holidays.add(h.date));
+      const endD = new Date(overviewYear, overviewMonth+1, 0);
+      const allHolidays = new Set();
+      for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
       let cumSollDays=0; const dc=new Date(startD);
-      while(dc<=endD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!holidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
-      const dailyMin = (Number(currentProfile.weeklyHours)||42.5) / 5 * 60;
-      const cumSoll = Math.round(cumSollDays * dailyMin);
-      // Cumulative vacation
-      const vsnap2 = await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
-      let cumVacMin = 0;
-      vsnap2.docs.forEach(d=>{const v=d.data();const f=new Date(v.from),t=new Date(v.to),sd=new Date(startDate+'T12:00:00');const dd=new Date(Math.max(f,sd));while(dd<=Math.min(t,endD)){if(dd.getDay()!==0&&dd.getDay()!==6)cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
-      const cumDiff = cumWorked + cumVacMin - cumSoll;
-      const overCard = document.createElement('div');
-      overCard.className='stat-card';
-      overCard.style.cssText='grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
-      overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Überstundenkonto (kumuliert ab ${new Date(startDate+'T12:00:00').toLocaleDateString('de-CH')})</div>
+      while(dc<=endD){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(!allHolidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
+      const dailyMin=(Number(currentProfile.weeklyHours)||42.5)/5*60;
+      const cumSoll=Math.round(cumSollDays*dailyMin);
+      const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+      let cumVacMin=0;
+      vsnap2.docs.forEach(d=>{const v=d.data();const f=new Date(v.from+'T12:00:00'),t=new Date(v.to+'T12:00:00'),sd=new Date(startDate+'T12:00:00');const dd=new Date(Math.max(f,sd));while(dd<=Math.min(t,endD)){const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;if(!allHolidays.has(key))cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
+      const cumDiff=cumWorked+cumVacMin-cumSoll;
+      const overCard=document.createElement('div');
+      overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
+      overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Überstundenkonto (ab ${new Date(startDate+'T12:00:00').toLocaleDateString('de-CH')})</div>
         <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${cumDiff>=0?'var(--green)':'var(--red)'};">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</div>`;
-      list.parentNode.insertBefore(overCard, list);
+      list.parentNode.insertBefore(overCard,list);
     }
-    entries.forEach(e=>{
-      const w=calcWorked(e), d=new Date(e.date+'T12:00:00'), ds=d.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'});
-      let det=minToStr(e.startMin); if(e.department)det=`[${e.department}] `+det;
-      if(e.pauseStartMin)det+=` · Pause ${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`; if(e.endMin)det+=` · ${minToStr(e.endMin)}`;
+
+    // Build full calendar for the month
+    const entryMap = {}; entries.forEach(e=>entryMap[e.date]=e);
+    const monthHolidays = getBernHolidays(overviewYear);
+    const holidayMap = {}; monthHolidays.forEach(h=>holidayMap[h.date]=h.name);
+    const vacDaySet = new Set();
+    if (!isStunden) {
+      const vsnap3=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+      vsnap3.docs.forEach(d=>{
+        const v=d.data();
+        const f=new Date(v.from+'T12:00:00'),t=new Date(v.to+'T12:00:00');
+        const dd=new Date(overviewYear,overviewMonth,1);
+        while(dd.getMonth()===overviewMonth){
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(dd>=f&&dd<=t&&!holidayMap[key])vacDaySet.add(key);
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+    }
+
+    // Iterate all days of month
+    const day=new Date(overviewYear,overviewMonth,1);
+    while(day.getMonth()===overviewMonth){
+      const key=`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      const ds=day.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'});
       const item=document.createElement('div'); item.className='entry-item';
-      item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">${det}</div></div>
-        <div style="display:flex;align-items:center;gap:8px;"><span class="entry-hours">${minutesToHM(w)}</span></div>`;
+      if(entryMap[key]){
+        // Gearbeitet
+        const e=entryMap[key], w=calcWorked(e);
+        let det=minToStr(e.startMin); if(e.department)det=`[${e.department}] `+det;
+        if(e.pauseStartMin)det+=` · Pause ${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`; if(e.endMin)det+=` · ${minToStr(e.endMin)}`;
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">${det}</div></div>
+          <div><span class="entry-hours">${minutesToHM(w)}</span></div>`;
+      } else if(holidayMap[key]){
+        // Feiertag
+        item.style.borderColor='rgba(200,169,110,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--accent);">🎉 ${holidayMap[key]}</div></div>`;
+      } else if(vacDaySet.has(key)){
+        // Ferientag
+        item.style.borderColor='rgba(90,158,111,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--green);">🌴 Ferientag bezogen</div></div>`;
+      } else {
+        // Frei
+        item.style.opacity='0.45';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">Frei</div></div>`;
+      }
       list.appendChild(item);
-    });
+      day.setDate(day.getDate()+1);
+    }
   }
 
   // ── EDIT MODAL ──
