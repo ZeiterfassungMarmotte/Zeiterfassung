@@ -940,6 +940,8 @@
     }
     doc.save(`Marmotte_Jahresueberblick_${year}.pdf`);
   };
+
+  window.loadSickList = async () => {
     const filterUid = document.getElementById('sick-filter-uid')?.value||'';
     const list = document.getElementById('sick-list');
     list.innerHTML='<div class="empty-state">Lade...</div>';
