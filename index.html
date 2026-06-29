@@ -1375,13 +1375,15 @@
     if (!isStunden) {
       doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
       doc.text(`Soll: ${minutesToHM(nettoSoll)}`, margin, y);
-      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, margin+50, y);
+      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, margin+60, y);
       const diffColor = diff>=0 ? green : red;
       doc.setTextColor(...diffColor);
-      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+110, y);
+      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+130, y);
       doc.setTextColor(...dark);
-      doc.text(`Ferientage bezogen: ${vacDaysInPeriod}T`, margin+170, y);
-      doc.text(`Feriensaldo: ${remainingVacDays} von ${u.vacationDaysPerYear||0}T verbleibend`, margin+220, y);
+      y += 7;
+      doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, margin, y);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, margin+80, y);
+      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, margin+170, y);
       y += 10;
     } else {
       doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
@@ -1395,11 +1397,9 @@
 
     // ── TABELLEN-HEADER ──
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
-    const col = { date:margin, type:margin+38, dept:margin+75, von:margin+115, bis:margin+140, pause:margin+165, worked:W-margin-20 };
+    const col = { date:margin, von:margin+45, bis:margin+100, pause:margin+155, worked:W-margin-20 };
     doc.text('Datum', col.date, y);
-    doc.text('Typ', col.type, y);
-    doc.text('Abteilung', col.dept, y);
-    doc.text('Von', col.von, y);
+    doc.text('Von / Status', col.von, y);
     doc.text('Bis', col.bis, y);
     doc.text('Pause', col.pause, y);
     doc.text('Gearbeitet', col.worked, y, {align:'right'});
@@ -1419,8 +1419,6 @@
         const e=entryMap[key], w=calcWorked(e);
         const pause=e.pauseStartMin?`${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`:'—';
         doc.text(ds, col.date, y);
-        doc.setTextColor(...green); doc.text('Arbeitstag', col.type, y); doc.setTextColor(...dark);
-        doc.text(e.department||'—', col.dept, y);
         doc.text(minToStr(e.startMin)||'—', col.von, y);
         doc.text(minToStr(e.endMin)||'—', col.bis, y);
         doc.text(pause, col.pause, y);
@@ -1429,13 +1427,19 @@
         doc.setFont('helvetica','normal');
       } else if(holidayMap[key]){
         doc.text(ds, col.date, y);
-        doc.setTextColor(...[200,169,110]); doc.text(`Feiertag: ${holidayMap[key]}`, col.type, y); doc.setTextColor(...dark);
+        doc.setTextColor(...[200,169,110]);
+        doc.text(`Feiertag: ${holidayMap[key]}`, col.von, y);
+        doc.setTextColor(...dark);
       } else if(vacDaySet.has(key)){
         doc.text(ds, col.date, y);
-        doc.setTextColor(...green); doc.text('Ferien bezogen', col.type, y); doc.setTextColor(...dark);
+        doc.setTextColor(...green);
+        doc.text('Ferien bezogen', col.von, y);
+        doc.setTextColor(...dark);
       } else {
-        doc.setTextColor(...dim); doc.text(ds, col.date, y);
-        doc.text('Frei', col.type, y); doc.setTextColor(...dark);
+        doc.setTextColor(...dim);
+        doc.text(ds, col.date, y);
+        doc.text('Frei', col.von, y);
+        doc.setTextColor(...dark);
       }
       y += 7;
     });
