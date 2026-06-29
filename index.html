@@ -1340,15 +1340,10 @@
     const red = [192, 80, 77];
     let y = margin;
 
-    const addFooter = () => {
-      const pg = doc.getNumberOfPages();
-      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
-      doc.text(`Seite ${pg}`, W/2, H-8, {align:'center'});
-    };
+    const addFooter = () => {};  // placeholder, handled at end
 
     const checkNewPage = (needed=8) => {
       if(y + needed > H - 20){
-        addFooter();
         doc.addPage();
         y = margin;
       }
@@ -1361,33 +1356,30 @@
     doc.text('Monatsbericht Zeiterfassung', margin, y+16);
     y += 24;
 
-    // ── MITARBEITER INFO (einfacher Text) ──
+    // ── MITARBEITER INFO + ZUSAMMENFASSUNG (3 Spalten) ──
+    const c1=margin, c2=margin+60, c3=margin+125;
     doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
-    doc.text(`Name: ${name}`, margin, y);
-    doc.text(`Abteilung: ${(u.departments||[]).join(', ')||'—'}`, margin+80, y);
-    doc.text(`Personalnummer: ${u.personnelNumber||'—'}`, margin+160, y);
+    doc.text(`Name: ${name}`, c1, y);
+    doc.text(`Abteilung: ${(u.departments||[]).join(', ')||'—'}`, c2, y);
+    doc.text(`Personalnummer: ${u.personnelNumber||'—'}`, c3, y);
     y += 7;
-    doc.text(`Periode: ${fromDate.toLocaleDateString('de-CH')} – ${toDate.toLocaleDateString('de-CH')}`, margin, y);
-    doc.text(`Anstellung: ${isStunden?'Stundenlöhner':'Festangestellt'}${!isStunden?' ('+Math.round(pct*100)+'%)':''}`, margin+80, y);
-    y += 10;
-
-    // ── ZUSAMMENFASSUNG ──
+    doc.text(`Periode: ${fromDate.toLocaleDateString('de-CH')} – ${toDate.toLocaleDateString('de-CH')}`, c1, y);
+    doc.text(`Anstellung: ${isStunden?'Stundenlöhner':'Festangestellt'} (${Math.round(pct*100)}%)`, c2, y);
+    y += 7;
     if (!isStunden) {
-      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
-      doc.text(`Soll: ${minutesToHM(nettoSoll)}`, margin, y);
-      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, margin+60, y);
+      doc.text(`Soll: ${minutesToHM(nettoSoll)}`, c1, y);
+      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, c2, y);
       const diffColor = diff>=0 ? green : red;
       doc.setTextColor(...diffColor);
-      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+120, y);
+      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, c3, y);
       doc.setTextColor(...dark);
       y += 7;
-      doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, margin, y);
-      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, margin+65, y);
-      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, margin+130, y);
+      doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, c1, y);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, c2, y);
+      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, c3, y);
       y += 10;
     } else {
-      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
-      doc.text(`Total gearbeitet: ${minutesToHM(totalWorked)}`, margin, y);
+      doc.text(`Total gearbeitet: ${minutesToHM(totalWorked)}`, c1, y);
       y += 10;
     }
 
