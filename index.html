@@ -256,6 +256,7 @@
       <button class="admin-tab" onclick="showAdminPanel('panel-live',this)">🟢 Live</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-holidays',this)">📅 Feiertage</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-requests',this)">🌴 Anträge <span id="requests-badge" style="display:none;background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;"></span></button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-sick',this)">🤒 Krank</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
     </div>
 
@@ -334,6 +335,35 @@
           <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('rejected')" id="req-filter-rejected">✕ Abgelehnt</button>
         </div>
         <div id="vacation-requests-list"><div class="empty-state">Lade...</div></div>
+      </div>
+    </div>
+
+    <!-- KRANKMELDUNGEN -->
+    <div class="admin-panel" id="panel-sick">
+      <div class="admin-section">
+        <h3>Krankmeldung eintragen</h3>
+        <div class="status-card">
+          <div class="form-group">
+            <label>Mitarbeitende/r</label>
+            <select id="sick-uid" style="width:100%;"></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Von</label><input type="date" id="sick-from" /></div>
+            <div class="form-group"><label>Bis</label><input type="date" id="sick-to" /></div>
+          </div>
+          <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="sick-note" placeholder="z.B. Arztzeugnis erhalten" /></div>
+          <div id="sick-msg" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="addSickEntry()">Krankmeldung eintragen</button>
+        </div>
+        <div style="margin-top:20px;">
+          <h3>Bestehende Krankmeldungen</h3>
+          <div class="form-group" style="margin-bottom:12px;">
+            <select id="sick-filter-uid" onchange="loadSickList()" style="width:100%;">
+              <option value="">Alle Mitarbeitenden</option>
+            </select>
+          </div>
+          <div id="sick-list"><div class="empty-state">Lade...</div></div>
+        </div>
       </div>
     </div>
 
@@ -570,7 +600,7 @@
       if (currentProfile.role === 'admin') {
         document.getElementById('nav-admin').style.display = 'block';
         document.getElementById('nav-vacation').style.display = 'block';
-        loadAdminUsers(); initHolidayYearSelect(); renderHolidays(); initAdminFilters();
+        loadAdminUsers().then(()=>populateSickSelects()); initHolidayYearSelect(); renderHolidays(); initAdminFilters();
         setTimeout(loadPendingBadge, 1000);
       }
       loadTodayStamp(); loadOverview(); loadVacationList();
@@ -617,6 +647,73 @@
     if(id==='panel-live')loadLiveStamps();
     if(id==='panel-holidays')renderHolidays();
     if(id==='panel-requests')loadVacationRequests('pending');
+    if(id==='panel-sick'){populateSickSelects();loadSickList();}
+  };
+
+  // ── KRANKMELDUNGEN ──
+  function populateSickSelects() {
+    const opts = '<option value="">Alle Mitarbeitenden</option>' +
+      allUsers.filter(u=>u.active!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
+      .map(u=>`<option value="${u.id}">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}</option>`).join('');
+    const sel1 = document.getElementById('sick-uid');
+    const sel2 = document.getElementById('sick-filter-uid');
+    if(sel1) sel1.innerHTML = opts.replace('<option value="">Alle Mitarbeitenden</option>','<option value="">— Bitte wählen —</option>');
+    if(sel2) sel2.innerHTML = opts;
+  }
+
+  window.addSickEntry = async () => {
+    const uid = document.getElementById('sick-uid').value;
+    const from = document.getElementById('sick-from').value;
+    const to = document.getElementById('sick-to').value;
+    const note = document.getElementById('sick-note').value;
+    const msg = document.getElementById('sick-msg');
+    if(!uid||!from||!to){msg.style.color='var(--red)';msg.textContent='Bitte alle Pflichtfelder ausfüllen.';return;}
+    await setDoc(doc(db,'sickDays',`${uid}_sick_${Date.now()}`),{uid,from,to,note,createdAt:new Date().toISOString()});
+    document.getElementById('sick-from').value='';
+    document.getElementById('sick-to').value='';
+    document.getElementById('sick-note').value='';
+    document.getElementById('sick-uid').value='';
+    msg.style.color='var(--green)'; msg.textContent='✓ Krankmeldung eingetragen!';
+    setTimeout(()=>msg.textContent='',3000);
+    loadSickList();
+  };
+
+  window.loadSickList = async () => {
+    const filterUid = document.getElementById('sick-filter-uid')?.value||'';
+    const list = document.getElementById('sick-list');
+    list.innerHTML='<div class="empty-state">Lade...</div>';
+    let snap;
+    if(filterUid){
+      snap = await getDocs(query(collection(db,'sickDays'),where('uid','==',filterUid)));
+    } else {
+      snap = await getDocs(collection(db,'sickDays'));
+    }
+    const entries = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.from.localeCompare(a.from));
+    if(!entries.length){list.innerHTML='<div class="empty-state">Keine Krankmeldungen</div>';return;}
+    list.innerHTML='';
+    entries.forEach(v=>{
+      const u=allUsers.find(x=>x.id===v.uid);
+      // Count sick days (all days incl Sa/So)
+      const f=v.from.split('-'), t=v.to.split('-');
+      const fd=new Date(Number(f[0]),Number(f[1])-1,Number(f[2]));
+      const td=new Date(Number(t[0]),Number(t[1])-1,Number(t[2]));
+      let days=0; const dd=new Date(fd); while(dd<=td){days++;dd.setDate(dd.getDate()+1);}
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">🤒 ${u?.name||'Unbekannt'}</div>
+        <div style="font-size:13px;color:var(--text-dim);">${formatVacDate(v.from)} – ${formatVacDate(v.to)}</div>
+        <div style="font-size:12px;color:var(--red);margin-top:2px;">${days} Krankheitstage</div>
+        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteSickEntry('${v.id}')">🗑</button>`;
+      list.appendChild(item);
+    });
+  };
+
+  window.deleteSickEntry = async (id) => {
+    if(!confirm('Krankmeldung wirklich löschen?'))return;
+    await deleteDoc(doc(db,'sickDays',id));
+    loadSickList();
   };
 
   // ── ADMIN: FERIENANTRÄGE ──
@@ -817,7 +914,21 @@
       const fulltimeH = Number(currentProfile?.fulltimeHours) || 42.5;
       const percent = Number(currentProfile?.employmentPercent) || 100;
       const dailyMin = (fulltimeH / 5) * 60;
-      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, nettoSoll=soll-vacMin, diff=worked-nettoSoll;
+      // Load sick work days for this month (Mo-Fr only)
+      const sickSnapEarly = await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+      const monthHolidaysEarly = getBernHolidays(overviewYear).map(h=>h.date);
+      let sickWorkDays = 0;
+      sickSnapEarly.docs.forEach(d=>{
+        const v=d.data(); const f=v.from, t=v.to;
+        const dd=new Date(overviewYear,overviewMonth,1);
+        while(dd.getMonth()===overviewMonth){
+          const dow=dd.getDay();
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!monthHolidaysEarly.includes(key))sickWorkDays++;
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, sickMin=sickWorkDays*dailyMin, nettoSoll=soll-vacMin-sickMin, diff=worked-nettoSoll;
       document.getElementById('stat-soll').textContent=minutesToHM(nettoSoll);
       document.getElementById('stat-ist').textContent=minutesToHM(worked);
       const de=document.getElementById('stat-diff'); de.textContent=(diff>=0?'+':'')+minutesToHM(diff); de.className='value '+(diff>=0?'positive':'negative');
@@ -884,16 +995,31 @@
     if (!isStunden) {
       const vsnap3=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       vsnap3.docs.forEach(d=>{
-        const v=d.data();
-        const f=v.from, t=v.to; // compare as strings YYYY-MM-DD
+        const v=d.data(); const f=v.from, t=v.to;
         const dd=new Date(overviewYear,overviewMonth,1);
         while(dd.getMonth()===overviewMonth){
+          const dow=dd.getDay();
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&!holidayMap[key])vacDaySet.add(key);
+          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidayMap[key])vacDaySet.add(key);
           dd.setDate(dd.getDate()+1);
         }
       });
     }
+
+    // Sick days (all days for display, Mo-Fr for soll)
+    const sickDaySet = new Set();
+    const sickWorkDaySet = new Set();
+    const sickSnap = await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+    sickSnap.docs.forEach(d=>{
+      const v=d.data(); const f=v.from, t=v.to;
+      const dd=new Date(overviewYear,overviewMonth,1);
+      while(dd.getMonth()===overviewMonth){
+        const dow=dd.getDay();
+        const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t){ sickDaySet.add(key); if(dow!==0&&dow!==6&&!holidayMap[key])sickWorkDaySet.add(key); }
+        dd.setDate(dd.getDate()+1);
+      }
+    });
 
     // Iterate all days of month
     const day=new Date(overviewYear,overviewMonth,1);
@@ -902,22 +1028,21 @@
       const ds=day.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'});
       const item=document.createElement('div'); item.className='entry-item';
       if(entryMap[key]){
-        // Gearbeitet
         const e=entryMap[key], w=calcWorked(e);
         let det=minToStr(e.startMin); if(e.department)det=`[${e.department}] `+det;
         if(e.pauseStartMin)det+=` · Pause ${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`; if(e.endMin)det+=` · ${minToStr(e.endMin)}`;
         item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">${det}</div></div>
           <div><span class="entry-hours">${minutesToHM(w)}</span></div>`;
       } else if(holidayMap[key]){
-        // Feiertag
         item.style.borderColor='rgba(200,169,110,0.3)';
         item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--accent);">🎉 ${holidayMap[key]}</div></div>`;
       } else if(vacDaySet.has(key)){
-        // Ferientag
         item.style.borderColor='rgba(90,158,111,0.3)';
         item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--green);">🌴 Ferientag bezogen</div></div>`;
+      } else if(sickDaySet.has(key)){
+        item.style.borderColor='rgba(192,80,77,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--red);">🤒 Krank</div></div>`;
       } else {
-        // Frei
         item.style.opacity='0.45';
         item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">Frei</div></div>`;
       }
