@@ -237,13 +237,13 @@
 
   <!-- FERIEN -->
   <div class="page" id="page-vacation">
-    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferientage eintragen</h2>
+    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferienantrag einreichen</h2>
     <div class="holiday-input">
       <div class="form-group"><label>Von</label><input type="date" id="vacation-from" /></div>
       <div class="form-group"><label>Bis</label><input type="date" id="vacation-to" /></div>
       <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="vacation-note" placeholder="z.B. Sommerferien" /></div>
       <div id="vacation-msg" class="success-msg" style="margin-bottom:8px;"></div>
-      <button class="btn btn-primary" onclick="addVacation()">Ferientage eintragen</button>
+      <button class="btn btn-primary" onclick="addVacation()">Antrag einreichen</button>
     </div>
     <div id="vacation-list"></div>
   </div>
@@ -255,6 +255,7 @@
       <button class="admin-tab" onclick="showAdminPanel('panel-overview',this)">📊 Übersicht</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-live',this)">🟢 Live</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-holidays',this)">📅 Feiertage</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-requests',this)">🌴 Anträge <span id="requests-badge" style="display:none;background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;"></span></button>
       <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
     </div>
 
@@ -323,6 +324,19 @@
       </div>
     </div>
 
+    <!-- FERIENANTRÄGE -->
+    <div class="admin-panel" id="panel-requests">
+      <div class="admin-section">
+        <h3>Ferienanträge</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('pending')" id="req-filter-pending" style="border-color:var(--accent);color:var(--accent);">⏳ Ausstehend</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('approved')" id="req-filter-approved">✓ Genehmigt</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('rejected')" id="req-filter-rejected">✕ Abgelehnt</button>
+        </div>
+        <div id="vacation-requests-list"><div class="empty-state">Lade...</div></div>
+      </div>
+    </div>
+
     <!-- NEU -->
     <div class="admin-panel" id="panel-new">
       <div class="admin-section">
@@ -371,7 +385,18 @@
   </div>
 </div>
 
-<!-- MODAL: Eigener Eintrag bearbeiten -->
+<!-- MODAL: Ferienantrag ablehnen -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal">
+    <h3>Antrag ablehnen</h3>
+    <input type="hidden" id="reject-vac-id" />
+    <div class="form-group"><label>Begründung (optional)</label><input type="text" id="reject-reason" placeholder="z.B. Betrieblich nicht möglich" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('reject-modal')">Abbrechen</button>
+      <button class="btn btn-danger" onclick="confirmReject()">Ablehnen</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="edit-modal">
   <div class="modal">
     <h3>Eintrag bearbeiten</h3>
@@ -544,8 +569,9 @@
         (currentProfile.canUseVacation !== false) ? 'block' : 'none';
       if (currentProfile.role === 'admin') {
         document.getElementById('nav-admin').style.display = 'block';
-        document.getElementById('nav-vacation').style.display = 'block'; // admin always sees it
+        document.getElementById('nav-vacation').style.display = 'block';
         loadAdminUsers(); initHolidayYearSelect(); renderHolidays(); initAdminFilters();
+        setTimeout(loadPendingBadge, 1000);
       }
       loadTodayStamp(); loadOverview(); loadVacationList();
     } else {
@@ -590,7 +616,71 @@
     document.getElementById(id).classList.add('active'); btn.classList.add('active');
     if(id==='panel-live')loadLiveStamps();
     if(id==='panel-holidays')renderHolidays();
+    if(id==='panel-requests')loadVacationRequests('pending');
   };
+
+  // ── ADMIN: FERIENANTRÄGE ──
+  let currentRequestFilter = 'pending';
+  window.loadVacationRequests = async (filter) => {
+    currentRequestFilter = filter;
+    ['pending','approved','rejected'].forEach(f=>{
+      const btn=document.getElementById(`req-filter-${f}`);
+      if(btn){btn.style.borderColor=f===filter?'var(--accent)':'var(--border)';btn.style.color=f===filter?'var(--accent)':'var(--text-dim)';}
+    });
+    const list=document.getElementById('vacation-requests-list');
+    list.innerHTML='<div class="empty-state">Lade...</div>';
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+    const snap=await getDocs(query(collection(db,'vacations'),where('status','==',filter)));
+    const requests=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.from.localeCompare(b.from));
+    list.innerHTML='';
+    if(!requests.length){list.innerHTML=`<div class="empty-state">Keine ${filter==='pending'?'ausstehenden':filter==='approved'?'genehmigten':'abgelehnten'} Anträge</div>`;return;}
+    requests.forEach(v=>{
+      const u=allUsers.find(x=>x.id===v.uid);
+      const item=document.createElement('div');
+      item.className='entry-item';item.style.marginBottom='8px';item.style.flexDirection='column';item.style.alignItems='flex-start';item.style.gap='10px';
+      item.innerHTML=`<div style="width:100%;display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="entry-date" style="font-size:15px;">${u?.name||'Unbekannt'}</div>
+          <div class="entry-detail">🌴 ${v.from} – ${v.to}</div>
+          ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+          ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
+        </div>
+        ${filter==='pending'?`<div style="display:flex;gap:6px;">
+          <button class="btn btn-primary btn-sm" onclick="approveVacation('${v.id}')">✓ Genehmigen</button>
+          <button class="btn btn-danger btn-sm" onclick="openReject('${v.id}')">✕ Ablehnen</button>
+        </div>`:''}
+      </div>`;
+      list.appendChild(item);
+    });
+  };
+
+  window.approveVacation = async (id) => {
+    await updateDoc(doc(db,'vacations',id),{status:'approved'});
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
+
+  window.openReject = (id) => {
+    document.getElementById('reject-vac-id').value=id;
+    document.getElementById('reject-reason').value='';
+    document.getElementById('reject-modal').classList.add('open');
+  };
+
+  window.confirmReject = async () => {
+    const id=document.getElementById('reject-vac-id').value;
+    const reason=document.getElementById('reject-reason').value.trim();
+    await updateDoc(doc(db,'vacations',id),{status:'rejected',...(reason?{rejectReason:reason}:{})});
+    closeModal('reject-modal');
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
+
+  async function loadPendingBadge() {
+    if(currentProfile?.role!=='admin')return;
+    const snap=await getDocs(query(collection(db,'vacations'),where('status','==','pending')));
+    const badge=document.getElementById('requests-badge');
+    if(badge){if(snap.size>0){badge.style.display='inline';badge.textContent=snap.size;}else{badge.style.display='none';}}
+  }
 
   // ── ABTEILUNG CHECKBOX STYLING ──
   window.toggleDeptCheck = (cb) => {
@@ -701,7 +791,7 @@
       const de=document.getElementById('stat-diff'); de.textContent='—'; de.className='value neutral';
       document.getElementById('stat-vacation').textContent='—';
     } else {
-      const vsnap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+      const vsnap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       const vacations=vsnap.docs.map(d=>({id:d.id,...d.data()}));
       const holidays=getBernHolidays(overviewYear).map(h=>h.date);
       let vacDays=0;
@@ -753,7 +843,7 @@
       }
       const cumSoll=Math.round(cumSollDays*dailyMin*pct);
       // Cumulative vacation - reduces soll
-      const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+      const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       let cumVacDays=0;
       vsnap2.docs.forEach(d=>{
         const v=d.data(); const f=v.from, t=v.to;
@@ -767,7 +857,6 @@
       });
       const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin*pct);
       const cumDiff=cumWorked-cumNettoSoll;
-      console.log('GLEITZEIT DEBUG:', {cumWorked, cumSollDays, cumSoll, cumVacDays, vacMin: Math.round(cumVacDays*dailyMin*pct), cumNettoSoll, cumDiff, dailyMin, pct, startDate, startD: startD.toISOString(), endD: endD.toISOString(), holidaysInJune: [...allHolidays].filter(h=>h.startsWith('2026-06'))});
       const overCard=document.createElement('div');
       overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
@@ -783,7 +872,7 @@
     const holidayMap = {}; monthHolidays.forEach(h=>holidayMap[h.date]=h.name);
     const vacDaySet = new Set();
     if (!isStunden) {
-      const vsnap3=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+      const vsnap3=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       vsnap3.docs.forEach(d=>{
         const v=d.data();
         const f=v.from, t=v.to; // compare as strings YYYY-MM-DD
@@ -846,17 +935,31 @@
   window.addVacation = async () => {
     const f=document.getElementById('vacation-from').value, t=document.getElementById('vacation-to').value, n=document.getElementById('vacation-note').value;
     if(!f||!t)return;
-    await setDoc(doc(db,'vacations',`${currentUser.uid}_vac_${Date.now()}`),{uid:currentUser.uid,from:f,to:t,note:n});
+    await setDoc(doc(db,'vacations',`${currentUser.uid}_vac_${Date.now()}`),{uid:currentUser.uid,from:f,to:t,note:n,status:'pending',createdAt:new Date().toISOString()});
     document.getElementById('vacation-from').value=''; document.getElementById('vacation-to').value=''; document.getElementById('vacation-note').value='';
-    const m=document.getElementById('vacation-msg'); m.textContent='✓ Eingetragen!'; setTimeout(()=>m.textContent='',2000);
+    const m=document.getElementById('vacation-msg'); m.textContent='✓ Antrag eingereicht – wartet auf Genehmigung!'; setTimeout(()=>m.textContent='',3000);
     loadVacationList();
   };
   async function loadVacationList() {
     const snap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
     const list=document.getElementById('vacation-list');
-    if(snap.empty){list.innerHTML='<div class="empty-state">Keine Ferieneinträge</div>';return;}
-    list.innerHTML='';
-    snap.docs.forEach(d=>{const v=d.data();const item=document.createElement('div');item.className='entry-item';item.innerHTML=`<div><div class="entry-date">🌴 ${v.from} – ${v.to}</div>${v.note?`<div class="entry-detail">${v.note}</div>`:''}</div><button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">✕</button>`;list.appendChild(item);});
+    if(snap.empty){list.innerHTML='<div class="empty-state">Keine Ferienanträge</div>';return;}
+    list.innerHTML='<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Meine Anträge</div>';
+    snap.docs.sort((a,b)=>b.data().createdAt?.localeCompare(a.data().createdAt||'')).forEach(d=>{
+      const v=d.data();
+      const status = v.status || 'approved'; // legacy entries = approved
+      const statusColor = status==='approved'?'var(--green)':status==='rejected'?'var(--red)':'var(--yellow)';
+      const statusLabel = status==='approved'?'✓ Genehmigt':status==='rejected'?'✕ Abgelehnt':'⏳ Ausstehend';
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';
+      item.innerHTML=`<div>
+        <div class="entry-date">🌴 ${v.from} – ${v.to}</div>
+        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+        ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
+        <div style="font-size:12px;font-weight:600;color:${statusColor};margin-top:4px;">${statusLabel}</div>
+      </div>
+      ${status==='pending'?`<button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">✕</button>`:''}`;
+      list.appendChild(item);
+    });
   }
   window.deleteVacation=async(id)=>{await deleteDoc(doc(db,'vacations',id));loadVacationList();};
 
@@ -946,7 +1049,7 @@
     if(empFilter)users=users.filter(u=>u.id===empFilter);
     const entriesSnap=await getDocs(query(collection(db,'timeEntries'),where('date','>=',fromVal),where('date','<=',toVal)));
     const allEntries=entriesSnap.docs.map(d=>d.data());
-    const vacSnap=await getDocs(collection(db,'vacations'));
+    const vacSnap=await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
     const allVac=vacSnap.docs.map(d=>d.data());
     list.innerHTML='';
     if(!users.length){list.innerHTML='<div class="empty-state">Keine Mitarbeitenden gefunden</div>';return;}
@@ -954,23 +1057,21 @@
       let entries=allEntries.filter(e=>e.uid===u.id);
       if(deptFilter)entries=entries.filter(e=>e.department===deptFilter);
       let worked=0; entries.forEach(e=>worked+=calcWorked(e));
-      // Ferientage im Zeitraum
+      const fulltimeH=Number(u.fulltimeHours)||42.5, pct=(Number(u.employmentPercent)||100)/100, dm=(fulltimeH/5)*60;
+      // Ferientage im Zeitraum (string comparison)
       let vacDays=0;
-      allVac.filter(v=>v.uid===u.id).forEach(v=>{
-        const f=new Date(v.from),t=new Date(v.to),from=new Date(fromVal),to=new Date(toVal);
-        const d=new Date(Math.max(f,from));
-        while(d<=Math.min(t,to)){if(d.getDay()!==0&&d.getDay()!==6)vacDays++;d.setDate(d.getDate()+1);}
-      });
-      // Soll für Zeitraum (zähle Arbeitstage)
-      const wh=Number(u.weeklyHours)||42, dm=(wh/5)*60;
-      const fromD=new Date(fromVal), toD=new Date(toVal);
-      // determine all years in range for holidays
       const allHolidays=new Set();
+      const fromD=new Date(fromVal), toD=new Date(toVal);
       for(let yr=fromD.getFullYear();yr<=toD.getFullYear();yr++)getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
+      allVac.filter(v=>v.uid===u.id).forEach(v=>{
+        const f=v.from, t=v.to;
+        const d=new Date(fromD);
+        while(d<=toD){const dow=d.getDay(),key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&dow!==0&&dow!==6&&!allHolidays.has(key))vacDays++;d.setDate(d.getDate()+1);}
+      });
       let sollDays=0; const dc=new Date(fromD);
       while(dc<=toD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!allHolidays.has(key))sollDays++;dc.setDate(dc.getDate()+1);}
       const isStunden = u.employmentType === 'stundenlöhner';
-      const soll=isStunden ? null : Math.round(sollDays*dm), vacMin=isStunden ? 0 : vacDays*dm, diff=isStunden ? null : worked+vacMin-soll;
+      const soll=isStunden ? null : Math.round(sollDays*dm*pct), vacMin=isStunden ? 0 : vacDays*dm, diff=isStunden ? null : worked+vacMin-soll;
       const row=document.createElement('div'); row.className='team-overview-row';
       row.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;">
         <div class="row-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}
