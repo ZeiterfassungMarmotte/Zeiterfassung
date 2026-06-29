@@ -977,7 +977,21 @@
         }
       });
       const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin*pct);
-      const cumDiff=cumWorked-cumNettoSoll;
+      // Also subtract sick work days from cumulative soll
+      const cumSickSnap=await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+      let cumSickWorkDays=0;
+      cumSickSnap.docs.forEach(d=>{
+        const v=d.data(); const f=v.from, t=v.to;
+        const dd=new Date(startD);
+        while(dd<=endD){
+          const dow=dd.getDay();
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!allHolidays.has(key))cumSickWorkDays++;
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+      const cumFinalSoll=cumNettoSoll - Math.round(cumSickWorkDays*dailyMin*pct);
+      const cumDiff=cumWorked-cumFinalSoll;
       const overCard=document.createElement('div');
       overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
@@ -998,9 +1012,9 @@
         const v=d.data(); const f=v.from, t=v.to;
         const dd=new Date(overviewYear,overviewMonth,1);
         while(dd.getMonth()===overviewMonth){
-          const dow=dd.getDay();
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidayMap[key])vacDaySet.add(key);
+          // Show all days incl Sa/So, but exclude holidays
+          if(key>=f&&key<=t&&!holidayMap[key])vacDaySet.add(key);
           dd.setDate(dd.getDate()+1);
         }
       });
@@ -1445,7 +1459,18 @@
     const diff = isStunden ? null : totalWorked - nettoSoll;
     const remainingVacDays = isStunden ? null : (u.vacationDaysPerYear||0) - vacDaysInPeriod;
 
-    // Build all days in period
+    // Build sick day set for PDF
+    const pdfSickDaySet = new Set();
+    const sickSnapPdf = await getDocs(query(collection(db,'sickDays'), where('uid','==',uid)));
+    sickSnapPdf.docs.forEach(d=>{
+      const v=d.data(); const f=v.from, t=v.to;
+      const cur2=new Date(fromDate);
+      while(cur2<=toDate){
+        const key=`${cur2.getFullYear()}-${String(cur2.getMonth()+1).padStart(2,'0')}-${String(cur2.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t)pdfSickDaySet.add(key);
+        cur2.setDate(cur2.getDate()+1);
+      }
+    });
     const allDays = [];
     const cur = new Date(fromDate);
     while(cur<=toDate){
@@ -1554,6 +1579,11 @@
         doc.text(ds, col.date, y);
         doc.setTextColor(...accent);
         doc.text(`Feiertag: ${holidayMap[key]}`, col.von, y);
+        doc.setTextColor(...dark);
+      } else if(pdfSickDaySet.has(key)){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...red);
+        doc.text('Krank', col.von, y);
         doc.setTextColor(...dark);
       } else if(vacDaySet.has(key)){
         doc.text(ds, col.date, y);
