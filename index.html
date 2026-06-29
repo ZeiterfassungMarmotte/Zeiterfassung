@@ -1279,172 +1279,185 @@
     const u = allUsers.find(x => x.id === uid);
     if (!u) return;
     const isStunden = u.employmentType === 'stundenlöhner';
+    const fulltimeH = Number(u.fulltimeHours) || 42.5;
+    const pct = (Number(u.employmentPercent) || 100) / 100;
+    const dailyMin = (fulltimeH / 5) * 60;
 
     // Load entries
     const snap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',uid), where('date','>=',fromVal), where('date','<=',toVal)));
-    const entries = snap.docs.map(d => d.data()).sort((a,b) => a.date.localeCompare(b.date));
+    const entryMap = {};
+    snap.docs.forEach(d => { const e=d.data(); entryMap[e.date]=e; });
 
-    // Load vacations
-    const vsnap = await getDocs(query(collection(db,'vacations'), where('uid','==',uid)));
+    // Load approved vacations
+    const vsnap = await getDocs(query(collection(db,'vacations'), where('uid','==',uid), where('status','==','approved')));
     const vacations = vsnap.docs.map(d => d.data());
+    const holidays = getBernHolidays(new Date(fromVal+'T12:00:00').getFullYear());
+    const holidayMap = {}; holidays.forEach(h => holidayMap[h.date]=h.name);
 
-    // Calculate vacation days in period
-    let vacDaysInPeriod = 0;
+    // Build vacation day set (Mo-Fr only)
+    const vacDaySet = new Set();
     vacations.forEach(v => {
-      const f = new Date(v.from), t = new Date(v.to);
-      const from = new Date(fromVal), to = new Date(toVal);
-      const d = new Date(Math.max(f, from));
-      while (d <= Math.min(t, to)) { if (d.getDay()!==0&&d.getDay()!==6) vacDaysInPeriod++; d.setDate(d.getDate()+1); }
+      const f=v.from, t=v.to;
+      const d = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
+      const end = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
+      while(d<=end){
+        const dow=d.getDay();
+        const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidayMap[key])vacDaySet.add(key);
+        d.setDate(d.getDate()+1);
+      }
     });
 
     // Calculate totals
     let totalWorked = 0;
-    entries.forEach(e => totalWorked += calcWorked(e));
-    const fromDate = new Date(fromVal+'T12:00:00');
-    const toDate = new Date(toVal+'T12:00:00');
+    Object.values(entryMap).forEach(e => totalWorked += calcWorked(e));
+    const vacDaysInPeriod = vacDaySet.size;
+    const fromDate = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
+    const toDate = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
     const monthName = fromDate.toLocaleDateString('de-CH', {month:'long', year:'numeric'});
     const soll = isStunden ? null : getSoll(fromDate.getFullYear(), fromDate.getMonth(), u);
-    const vacMin = isStunden ? 0 : vacDaysInPeriod * ((Number(u.weeklyHours)||42)/5*60);
-    const diff = isStunden ? null : totalWorked + vacMin - soll;
-    const remainingVacDays = isStunden ? null : (u.vacationDaysPerYear || 0) - vacDaysInPeriod;
+    const nettoSoll = isStunden ? null : soll - vacDaysInPeriod * dailyMin;
+    const diff = isStunden ? null : totalWorked - nettoSoll;
+    const remainingVacDays = isStunden ? null : (u.vacationDaysPerYear||0) - vacDaysInPeriod;
 
-    // Build PDF
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const W = 210, margin = 20;
-    let y = margin;
-    const accent = [200, 169, 110];
-    const dark = [26, 26, 26];
-    const dimText = [120, 115, 110];
-
-    // Header background
-    doc.setFillColor(...dark);
-    doc.rect(0, 0, W, 38, 'F');
-
-    // Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20); doc.setFont('helvetica','bold');
-    doc.text('Marmotte', margin, 16);
-    doc.setTextColor(...accent);
-    doc.setFontSize(11); doc.setFont('helvetica','normal');
-    doc.text('Monatsbericht Zeiterfassung', margin, 24);
-    doc.setTextColor(200, 200, 200);
-    doc.setFontSize(9);
-    doc.text(`Erstellt am ${new Date().toLocaleDateString('de-CH')}`, W - margin, 24, {align:'right'});
-    y = 50;
-
-    // Employee info box
-    doc.setFillColor(245, 243, 240);
-    doc.roundedRect(margin, y, W - 2*margin, 28, 3, 3, 'F');
-    doc.setTextColor(...dark);
-    doc.setFontSize(14); doc.setFont('helvetica','bold');
-    doc.text(name, margin+6, y+10);
-    doc.setFontSize(9); doc.setFont('helvetica','normal');
-    doc.setTextColor(...dimText);
-    if (u.personnelNumber) doc.text(`Personalnummer: ${u.personnelNumber}`, margin+6, y+18);
-    doc.text(`Periode: ${fromDate.toLocaleDateString('de-CH')} – ${toDate.toLocaleDateString('de-CH')}`, margin+6, y+24);
-    doc.text(`Anstellung: ${isStunden ? 'Stundenlöhner' : 'Festangestellt'}`, W-margin-6, y+18, {align:'right'});
-    if (!isStunden) doc.text(`Sollstunden/Woche: ${u.weeklyHours}h`, W-margin-6, y+24, {align:'right'});
-    y += 36;
-
-    // Summary boxes
-    if (!isStunden) {
-      const boxW = (W - 2*margin - 12) / 4;
-      const boxes = [
-        {label:'Soll', value: minutesToHM(soll)},
-        {label:'Gearbeitet', value: minutesToHM(totalWorked)},
-        {label:'Differenz', value: (diff>=0?'+':'')+minutesToHM(diff), color: diff>=0?[90,158,111]:[192,80,77]},
-        {label:'Ferientage', value: `${vacDaysInPeriod} T`},
-      ];
-      boxes.forEach((b,i) => {
-        const bx = margin + i*(boxW+4);
-        doc.setFillColor(...dark);
-        doc.roundedRect(bx, y, boxW, 22, 2, 2, 'F');
-        doc.setTextColor(...(b.color||accent));
-        doc.setFontSize(14); doc.setFont('helvetica','bold');
-        doc.text(b.value, bx + boxW/2, y+14, {align:'center'});
-        doc.setTextColor(180,175,170);
-        doc.setFontSize(7); doc.setFont('helvetica','normal');
-        doc.text(b.label.toUpperCase(), bx + boxW/2, y+20, {align:'center'});
-      });
-      y += 30;
-
-      // Feriensaldo
-      doc.setFillColor(240, 248, 240);
-      doc.roundedRect(margin, y, W-2*margin, 14, 2, 2, 'F');
-      doc.setTextColor(60,120,80); doc.setFontSize(9); doc.setFont('helvetica','bold');
-      doc.text(`Feriensaldo nach ${monthName}:`, margin+6, y+9);
-      doc.text(`${remainingVacDays} von ${u.vacationDaysPerYear} Tagen verbleibend (${vacDaysInPeriod} bezogen)`, W-margin-6, y+9, {align:'right'});
-      y += 22;
-    } else {
-      // Stundenlöhner: nur Total
-      doc.setFillColor(...dark);
-      doc.roundedRect(margin, y, W-2*margin, 22, 2, 2, 'F');
-      doc.setTextColor(...accent);
-      doc.setFontSize(16); doc.setFont('helvetica','bold');
-      doc.text(minutesToHM(totalWorked), W/2, y+14, {align:'center'});
-      doc.setTextColor(180,175,170); doc.setFontSize(8); doc.setFont('helvetica','normal');
-      doc.text('TOTAL GEARBEITET', W/2, y+20, {align:'center'});
-      y += 30;
+    // Build all days in period
+    const allDays = [];
+    const cur = new Date(fromDate);
+    while(cur<=toDate){
+      const key=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+      allDays.push({key, date:new Date(cur)});
+      cur.setDate(cur.getDate()+1);
     }
 
-    // Entries table
-    doc.setTextColor(...dark); doc.setFontSize(11); doc.setFont('helvetica','bold');
-    doc.text('Arbeitstage', margin, y); y += 6;
+    // PDF setup - Landscape A4
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W = 297, H = 210, margin = 15;
+    const dark = [26, 26, 26];
+    const accent = [200, 169, 110];
+    const dim = [140, 135, 130];
+    const green = [90, 158, 111];
+    const red = [192, 80, 77];
+    let y = margin;
+    let pageNum = 1;
+    const totalPages = () => doc.getNumberOfPages();
 
-    // Table header
-    doc.setFillColor(...accent);
-    doc.rect(margin, y, W-2*margin, 7, 'F');
-    doc.setTextColor(26,26,26); doc.setFontSize(8); doc.setFont('helvetica','bold');
-    doc.text('Datum', margin+3, y+5);
-    doc.text('Abteilung', margin+42, y+5);
-    doc.text('Kommen', margin+82, y+5);
-    doc.text('Pause', margin+108, y+5);
-    doc.text('Gehen', margin+130, y+5);
-    doc.text('Gearbeitet', W-margin-3, y+5, {align:'right'});
-    y += 9;
+    const addFooter = () => {
+      const pg = doc.getNumberOfPages();
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
+      doc.text(`Seite ${pg}`, W/2, H-8, {align:'center'});
+    };
 
-    // Table rows
-    entries.forEach((e, i) => {
-      if (y > 265) { doc.addPage(); y = margin; }
-      if (i % 2 === 0) { doc.setFillColor(248,246,243); doc.rect(margin, y-1, W-2*margin, 7, 'F'); }
-      const d = new Date(e.date+'T12:00:00');
-      const ds = d.toLocaleDateString('de-CH', {weekday:'short', day:'2-digit', month:'2-digit', year:'numeric'});
-      const pause = e.pauseStartMin ? `${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}` : '—';
-      doc.setTextColor(...dark); doc.setFontSize(8); doc.setFont('helvetica','normal');
-      doc.text(ds, margin+3, y+4);
-      doc.text(e.department||'—', margin+42, y+4);
-      doc.text(minToStr(e.startMin)||'—', margin+82, y+4);
-      doc.text(pause, margin+108, y+4);
-      doc.text(minToStr(e.endMin)||'—', margin+130, y+4);
-      doc.setFont('helvetica','bold');
-      doc.text(minutesToHM(calcWorked(e)), W-margin-3, y+4, {align:'right'});
+    const checkNewPage = (needed=8) => {
+      if(y + needed > H - 15){
+        addFooter();
+        doc.addPage();
+        y = margin;
+        pageNum++;
+      }
+    };
+
+    // ── TITEL ──
+    doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Marmotte – Monatsbericht Zeiterfassung', margin, y+7); y += 14;
+
+    // ── MITARBEITER INFO (einfacher Text) ──
+    doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+    doc.text(`Name: ${name}`, margin, y);
+    doc.text(`Abteilung: ${(u.departments||[]).join(', ')||'—'}`, margin+80, y);
+    doc.text(`Personalnummer: ${u.personnelNumber||'—'}`, margin+160, y);
+    y += 7;
+    doc.text(`Periode: ${fromDate.toLocaleDateString('de-CH')} – ${toDate.toLocaleDateString('de-CH')}`, margin, y);
+    doc.text(`Anstellung: ${isStunden?'Stundenlöhner':'Festangestellt'}${!isStunden?' ('+Math.round(pct*100)+'%)':''}`, margin+80, y);
+    y += 10;
+
+    // ── ZUSAMMENFASSUNG ──
+    if (!isStunden) {
+      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+      doc.text(`Soll: ${minutesToHM(nettoSoll)}`, margin, y);
+      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, margin+50, y);
+      const diffColor = diff>=0 ? green : red;
+      doc.setTextColor(...diffColor);
+      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, margin+110, y);
+      doc.setTextColor(...dark);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod}T`, margin+170, y);
+      doc.text(`Feriensaldo: ${remainingVacDays} von ${u.vacationDaysPerYear||0}T verbleibend`, margin+220, y);
+      y += 10;
+    } else {
+      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+      doc.text(`Total gearbeitet: ${minutesToHM(totalWorked)}`, margin, y);
+      y += 10;
+    }
+
+    // ── TRENNLINIE ──
+    doc.setDrawColor(...accent); doc.setLineWidth(0.4);
+    doc.line(margin, y, W-margin, y); y += 6;
+
+    // ── TABELLEN-HEADER ──
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    const col = { date:margin, type:margin+38, dept:margin+75, von:margin+115, bis:margin+140, pause:margin+165, worked:W-margin-20 };
+    doc.text('Datum', col.date, y);
+    doc.text('Typ', col.type, y);
+    doc.text('Abteilung', col.dept, y);
+    doc.text('Von', col.von, y);
+    doc.text('Bis', col.bis, y);
+    doc.text('Pause', col.pause, y);
+    doc.text('Gearbeitet', col.worked, y, {align:'right'});
+    y += 4;
+    doc.setDrawColor(200,195,190); doc.setLineWidth(0.2);
+    doc.line(margin, y, W-margin, y); y += 5;
+
+    // ── TABELLENZEILEN ──
+    allDays.forEach((dayObj, i) => {
+      checkNewPage(7);
+      const {key, date} = dayObj;
+      const ds = date.toLocaleDateString('de-CH', {weekday:'short', day:'2-digit', month:'2-digit', year:'numeric'});
+      if(i%2===0){doc.setFillColor(248,246,243);doc.rect(margin,y-4,W-2*margin,7,'F');}
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+
+      if(entryMap[key]){
+        const e=entryMap[key], w=calcWorked(e);
+        const pause=e.pauseStartMin?`${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`:'—';
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...green); doc.text('Arbeitstag', col.type, y); doc.setTextColor(...dark);
+        doc.text(e.department||'—', col.dept, y);
+        doc.text(minToStr(e.startMin)||'—', col.von, y);
+        doc.text(minToStr(e.endMin)||'—', col.bis, y);
+        doc.text(pause, col.pause, y);
+        doc.setFont('helvetica','bold');
+        doc.text(minutesToHM(w), col.worked, y, {align:'right'});
+        doc.setFont('helvetica','normal');
+      } else if(holidayMap[key]){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...[200,169,110]); doc.text(`Feiertag: ${holidayMap[key]}`, col.type, y); doc.setTextColor(...dark);
+      } else if(vacDaySet.has(key)){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...green); doc.text('Ferien bezogen', col.type, y); doc.setTextColor(...dark);
+      } else {
+        doc.setTextColor(...dim); doc.text(ds, col.date, y);
+        doc.text('Frei', col.type, y); doc.setTextColor(...dark);
+      }
       y += 7;
     });
 
-    if (entries.length === 0) {
-      doc.setTextColor(...dimText); doc.setFontSize(9); doc.setFont('helvetica','italic');
-      doc.text('Keine Einträge in diesem Zeitraum', margin+3, y+5); y+=10;
+    // ── TOTAL ──
+    checkNewPage(10);
+    doc.setDrawColor(...accent); doc.setLineWidth(0.4);
+    doc.line(margin, y, W-margin, y); y += 5;
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Total gearbeitet:', margin, y);
+    doc.text(minutesToHM(totalWorked), col.worked, y, {align:'right'});
+
+    addFooter();
+
+    // Update all page footers with total pages
+    const total = doc.getNumberOfPages();
+    for(let p=1;p<=total;p++){
+      doc.setPage(p);
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
+      doc.text(`Seite ${p} von ${total}`, W/2, H-8, {align:'center'});
     }
 
-    // Total line
-    y += 2;
-    doc.setFillColor(...dark);
-    doc.rect(margin, y, W-2*margin, 8, 'F');
-    doc.setTextColor(...accent); doc.setFontSize(9); doc.setFont('helvetica','bold');
-    doc.text('Total', margin+3, y+5.5);
-    doc.text(minutesToHM(totalWorked), W-margin-3, y+5.5, {align:'right'});
-
-    // Footer
-    y = 285;
-    doc.setDrawColor(...accent); doc.setLineWidth(0.3);
-    doc.line(margin, y, W-margin, y);
-    doc.setTextColor(...dimText); doc.setFontSize(7); doc.setFont('helvetica','normal');
-    doc.text('Marmotte Zeiterfassung', margin, y+5);
-    doc.text(`${name} · ${monthName}`, W/2, y+5, {align:'center'});
-    doc.text(`Seite 1`, W-margin, y+5, {align:'right'});
-
-    // Save
     const monthNameFile = fromDate.toLocaleDateString('de-CH', {month:'long'});
     const yearFile = fromDate.getFullYear();
     const safeName = name.replace(/ /g,'_');
