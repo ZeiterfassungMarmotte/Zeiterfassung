@@ -736,7 +736,7 @@
       const allSnap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',currentUser.uid), where('date','>=',startDate), where('date','<=',endOfMonth)));
       const allEntries = allSnap.docs.map(d=>d.data());
       let cumWorked = 0; allEntries.forEach(e=>cumWorked+=calcWorked(e));
-      const startD = new Date(startDate+'T12:00:00');
+      const startD = new Date(startDate.split('-')[0], startDate.split('-')[1]-1, startDate.split('-')[2]);
       const endD = new Date(overviewYear, overviewMonth+1, 0);
       const allHolidays = new Set();
       for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
