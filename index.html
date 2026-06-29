@@ -509,12 +509,21 @@
   function timeToMin(t) { if(!t)return null; const[h,m]=t.split(':').map(Number); return h*60+m; }
   function minToStr(m) { if(m==null||m===undefined)return''; return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
   function calcWorked(e) { if(!e.startMin||!e.endMin)return 0; let w=e.endMin-e.startMin; if(e.pauseStartMin&&e.pauseEndMin)w-=(e.pauseEndMin-e.pauseStartMin); return Math.max(0,w); }
-  function getSoll(year,month,profile) {
-    const p=profile||currentProfile, wh=Number(p?.weeklyHours)||42, dm=(wh/5)*60;
-    const holidays=getBernHolidays(year).map(h=>h.date);
-    let count=0; const d=new Date(year,month,1);
-    while(d.getMonth()===month){const dow=d.getDay(),key=`${year}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!holidays.includes(key))count++;d.setDate(d.getDate()+1);}
-    return Math.round(count*dm);
+  function getSoll(year, month, profile) {
+    const p = profile || currentProfile;
+    const fulltimeH = Number(p?.fulltimeHours) || 42.5;
+    const percent = Number(p?.employmentPercent) || 100;
+    const dailyMin = (fulltimeH / 5) * 60;
+    const holidays = getBernHolidays(year).map(h => h.date);
+    let workDays = 0;
+    const d = new Date(year, month, 1);
+    while (d.getMonth() === month) {
+      const dow = d.getDay();
+      const key = `${year}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (dow !== 0 && dow !== 6 && !holidays.includes(key)) workDays++;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.round(workDays * (percent / 100) * dailyMin);
   }
 
   // ── CLOCK ──
@@ -705,7 +714,10 @@
           d.setDate(d.getDate()+1);
         }
       });
-      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*((Number(currentProfile?.weeklyHours)||42.5)/5*60), diff=worked+vacMin-soll;
+      const fulltimeH = Number(currentProfile?.fulltimeHours) || 42.5;
+      const percent = Number(currentProfile?.employmentPercent) || 100;
+      const dailyMin = (fulltimeH / 5) * 60;
+      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, diff=worked+vacMin-soll;
       document.getElementById('stat-soll').textContent=minutesToHM(soll);
       document.getElementById('stat-ist').textContent=minutesToHM(worked);
       const de=document.getElementById('stat-diff'); de.textContent=(diff>=0?'+':'')+minutesToHM(diff); de.className='value '+(diff>=0?'positive':'negative');
@@ -726,12 +738,13 @@
       const allHolidays = new Set();
       for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
       let cumSollDays=0; const dc=new Date(startD);
-      while(dc<=endD){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(!allHolidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
-      const dailyMin=(Number(currentProfile.weeklyHours)||42.5)/5*60;
-      const cumSoll=Math.round(cumSollDays*dailyMin);
+      while(dc<=endD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!allHolidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
+      const dailyMin=(Number(currentProfile.fulltimeHours)||42.5)/5*60;
+      const pct=(Number(currentProfile.employmentPercent)||100)/100;
+      const cumSoll=Math.round(cumSollDays*dailyMin*pct);
       const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
       let cumVacMin=0;
-      vsnap2.docs.forEach(d=>{const v=d.data();const f=new Date(v.from+'T12:00:00'),t=new Date(v.to+'T12:00:00'),sd=new Date(startDate+'T12:00:00');const dd=new Date(Math.max(f,sd));while(dd<=Math.min(t,endD)){const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;if(!allHolidays.has(key))cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
+      vsnap2.docs.forEach(d=>{const v=d.data();const f=v.from,t=v.to,sd=startDate;const dd=new Date(startD);while(dd<=endD){const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&key>=sd&&!allHolidays.has(key))cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
       const cumDiff=cumWorked+cumVacMin-cumSoll;
       const overCard=document.createElement('div');
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
