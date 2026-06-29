@@ -974,7 +974,7 @@
         ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
         <div style="font-size:12px;font-weight:600;color:${statusColor};margin-top:4px;">${statusLabel}</div>
       </div>
-      <button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">🗑</button>`;
+      ${status==='pending'?`<button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">🗑</button>`:''}`;
       list.appendChild(item);
     });
   }
