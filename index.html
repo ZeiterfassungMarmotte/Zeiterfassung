@@ -725,11 +725,14 @@
     }
     const list=document.getElementById('entries-list');
     list.innerHTML='';
+    // Remove old gleitzeit card if exists
+    const oldCard = document.getElementById('gleitzeit-card');
+    if (oldCard) oldCard.remove();
 
-    // Kumuliertes Überstundenkonto (nur Festangestellte)
+    // Gleitzeitkonto (nur Festangestellte mit Startdatum)
     if (!isStunden && currentProfile?.startDate) {
       const startDate = currentProfile.startDate;
-      const endOfMonth = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-31`;
+      const endOfMonth = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-${String(new Date(overviewYear, overviewMonth+1, 0).getDate()).padStart(2,'0')}`;
       const allSnap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',currentUser.uid), where('date','>=',startDate), where('date','<=',endOfMonth)));
       const allEntries = allSnap.docs.map(d=>d.data());
       let cumWorked = 0; allEntries.forEach(e=>cumWorked+=calcWorked(e));
@@ -737,18 +740,22 @@
       const endD = new Date(overviewYear, overviewMonth+1, 0);
       const allHolidays = new Set();
       for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
+      const fulltimeH=(Number(currentProfile.fulltimeHours)||42.5);
+      const dailyMin=fulltimeH/5*60;
+      const pct=(Number(currentProfile.employmentPercent)||100)/100;
+      // Cumulative soll: Mo-Fr, no holidays, from startDate to end of current month
       let cumSollDays=0; const dc=new Date(startD);
       while(dc<=endD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!allHolidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
-      const dailyMin=(Number(currentProfile.fulltimeHours)||42.5)/5*60;
-      const pct=(Number(currentProfile.employmentPercent)||100)/100;
       const cumSoll=Math.round(cumSollDays*dailyMin*pct);
+      // Cumulative vacation
       const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
       let cumVacMin=0;
-      vsnap2.docs.forEach(d=>{const v=d.data();const f=v.from,t=v.to,sd=startDate;const dd=new Date(startD);while(dd<=endD){const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&key>=sd&&!allHolidays.has(key))cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
+      vsnap2.docs.forEach(d=>{const v=d.data();const f=v.from,t=v.to,sd=startDate;const dd=new Date(startD);while(dd<=endD){const dow=dd.getDay(),key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&key>=sd&&dow!==0&&dow!==6&&!allHolidays.has(key))cumVacMin+=dailyMin;dd.setDate(dd.getDate()+1);}});
       const cumDiff=cumWorked+cumVacMin-cumSoll;
       const overCard=document.createElement('div');
+      overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
-      overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Überstundenkonto (ab ${new Date(startDate+'T12:00:00').toLocaleDateString('de-CH')})</div>
+      overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Gleitzeitkonto (ab ${new Date(startDate+'T12:00:00').toLocaleDateString('de-CH')})</div>
         <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${cumDiff>=0?'var(--green)':'var(--red)'};">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</div>`;
       list.parentNode.insertBefore(overCard,list);
     }
