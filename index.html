@@ -137,7 +137,19 @@
     .form-group { margin-bottom: 14px; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    /* FEIERTAGE */
+    /* JAHRESTABELLE */
+    .year-table { width:100%; border-collapse:collapse; font-size:11px; min-width:900px; }
+    .year-table th { background:var(--surface2); color:var(--text-dim); padding:6px 8px; text-align:center; border:1px solid var(--border); font-weight:600; white-space:nowrap; }
+    .year-table th.name-col { text-align:left; min-width:120px; }
+    .year-table td { padding:5px 8px; border:1px solid var(--border); text-align:center; white-space:nowrap; }
+    .year-table td.name-col { text-align:left; font-weight:500; background:var(--surface); }
+    .year-table tr:nth-child(even) td { background:var(--surface2); }
+    .year-table tr:nth-child(even) td.name-col { background:var(--surface); }
+    .year-table .pos { color:var(--green); font-weight:600; }
+    .year-table .neg { color:var(--red); font-weight:600; }
+    .year-table .total-col { background:rgba(200,169,110,0.1); font-weight:700; }
+    .year-table .sick-col { color:var(--red); }
+    .year-table .vac-col { color:var(--green); }
     .holiday-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
     /* LIVE */
@@ -253,8 +265,9 @@
     <div class="admin-tabs">
       <button class="admin-tab active" onclick="showAdminPanel('panel-team',this)">👥 Team</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-overview',this)">📊 Übersicht</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-year',this)">📅 Jahr</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-live',this)">🟢 Live</button>
-      <button class="admin-tab" onclick="showAdminPanel('panel-holidays',this)">📅 Feiertage</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-holidays',this)">🎉 Feiertage</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-requests',this)">🌴 Anträge <span id="requests-badge" style="display:none;background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;"></span></button>
       <button class="admin-tab" onclick="showAdminPanel('panel-sick',this)">🤒 Krank</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
@@ -299,6 +312,31 @@
         <button class="btn btn-primary" onclick="loadAdminOverview()" style="margin-top:4px;">Filtern</button>
       </div>
       <div id="team-overview-list"><div class="empty-state">Filter anwenden</div></div>
+    </div>
+
+    <!-- JAHRESÜBERBLICK -->
+    <div class="admin-panel" id="panel-year">
+      <div class="filter-bar">
+        <div class="form-row">
+          <div>
+            <label>Jahr</label>
+            <select id="year-filter-year" style="width:100%;"></select>
+          </div>
+          <div>
+            <label>Abteilung</label>
+            <select id="year-filter-dept">
+              <option value="">Alle</option>
+              <option>Bäckerei</option>
+              <option>Laden & Tearoom</option>
+              <option>Dorfladen</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadYearOverview()">Anzeigen</button>
+      </div>
+      <div id="year-overview-content" style="overflow-x:auto;">
+        <div class="empty-state">Jahr auswählen und Anzeigen klicken</div>
+      </div>
     </div>
 
     <!-- LIVE -->
@@ -669,6 +707,138 @@
     if(id==='panel-holidays')renderHolidays();
     if(id==='panel-requests')loadVacationRequests('pending');
     if(id==='panel-sick'){populateSickSelects();loadSickList();}
+    if(id==='panel-year')initYearFilter();
+  };
+
+  function initYearFilter() {
+    const sel = document.getElementById('year-filter-year');
+    if(sel.options.length > 0) return;
+    const y = new Date().getFullYear();
+    for(let i=y-2;i<=y+1;i++){
+      const o=document.createElement('option');
+      o.value=i; o.textContent=i;
+      if(i===y)o.selected=true;
+      sel.appendChild(o);
+    }
+  }
+
+  window.loadYearOverview = async () => {
+    const year = Number(document.getElementById('year-filter-year').value);
+    const deptFilter = document.getElementById('year-filter-dept').value;
+    const content = document.getElementById('year-overview-content');
+    content.innerHTML = '<div class="empty-state">Lade...</div>';
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+    let users = allUsers.filter(u=>u.active!==false);
+    if(deptFilter) users = users.filter(u=>(u.departments||[]).includes(deptFilter));
+    users = users.sort((a,b)=>(a.personnelNumber||'').localeCompare(b.personnelNumber||''));
+
+    const MN=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+    // Load all data for the year
+    const yearFrom = `${year}-01-01`, yearTo = `${year}-12-31`;
+    const entriesSnap = await getDocs(query(collection(db,'timeEntries'),where('date','>=',yearFrom),where('date','<=',yearTo)));
+    const allEntries = entriesSnap.docs.map(d=>d.data());
+    const vacSnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
+    const allVac = vacSnap.docs.map(d=>d.data());
+    const sickSnap = await getDocs(collection(db,'sickDays'));
+    const allSick = sickSnap.docs.map(d=>d.data());
+
+    // Build table
+    let html = `<table class="year-table">
+      <thead><tr>
+        <th class="name-col">Mitarbeitende/r</th>
+        ${MN.map(m=>`<th>${m}</th>`).join('')}
+        <th class="total-col">Gleitzeit</th>
+        <th class="sick-col">🤒 Krank</th>
+        <th class="vac-col">🌴 Ferien</th>
+        <th class="vac-col">Saldo</th>
+      </tr></thead><tbody>`;
+
+    for(const u of users) {
+      const isStunden = u.employmentType === 'stundenlöhner';
+      const fulltimeH = Number(u.fulltimeHours)||42.5;
+      const pct = (Number(u.employmentPercent)||100)/100;
+      const dm = (fulltimeH/5)*60;
+      const startDate = u.startDate || null;
+
+      let cumDiff = 0;
+      let totalSickAll = 0;
+      let totalVacDays = 0;
+      const monthCells = [];
+
+      for(let m=0;m<12;m++){
+        const mStr = String(m+1).padStart(2,'0');
+        const mFrom = `${year}-${mStr}-01`;
+        const mTo = `${year}-${mStr}-${String(new Date(year,m+1,0).getDate()).padStart(2,'0')}`;
+
+        // Skip months before startDate
+        if(startDate && startDate > mTo){ monthCells.push('<td style="color:var(--text-dim);">—</td>'); continue; }
+
+        const holidays = getBernHolidays(year).map(h=>h.date);
+        const entries = allEntries.filter(e=>e.uid===u.id&&e.date>=mFrom&&e.date<=mTo);
+        let worked=0; entries.forEach(e=>worked+=calcWorked(e));
+
+        // Vac days Mo-Fr
+        let vacDays=0;
+        allVac.filter(v=>v.uid===u.id).forEach(v=>{
+          const f=v.from,t=v.to;
+          const d=new Date(year,m,1);
+          while(d.getMonth()===m){
+            const dow=d.getDay(),key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidays.includes(key))vacDays++;
+            d.setDate(d.getDate()+1);
+          }
+        });
+        totalVacDays += vacDays;
+
+        // Sick days
+        let sickWork=0, sickAll=0;
+        allSick.filter(v=>v.uid===u.id).forEach(v=>{
+          const f=v.from,t=v.to;
+          const d=new Date(year,m,1);
+          while(d.getMonth()===m){
+            const dow=d.getDay(),key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t){sickAll++;if(dow!==0&&dow!==6&&!holidays.includes(key))sickWork++;}
+            d.setDate(d.getDate()+1);
+          }
+        });
+        totalSickAll += sickAll;
+
+        if(isStunden){
+          monthCells.push(`<td>${minutesToHM(worked)}</td>`);
+        } else {
+          // Soll
+          const effectiveFrom = startDate && startDate > mFrom ? startDate : mFrom;
+          let sollDays=0;
+          const dc=new Date(effectiveFrom);
+          const end=new Date(mTo);
+          while(dc<=end){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!holidays.includes(key))sollDays++;dc.setDate(dc.getDate()+1);}
+          const soll=Math.round(sollDays*dm*pct);
+          const nettoSoll=soll-vacDays*dm-sickWork*dm;
+          const diff=worked-nettoSoll;
+          cumDiff+=diff;
+          const cls=diff>=0?'pos':'neg';
+          monthCells.push(`<td class="${cls}">${diff>=0?'+':''}${minutesToHM(diff)}</td>`);
+        }
+      }
+
+      const cumCls = cumDiff>=0?'pos':'neg';
+      const remainVac = (u.vacationDaysPerYear||0) - totalVacDays;
+
+      html += `<tr>
+        <td class="name-col">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}${isStunden?' <span class="dept-tag" style="background:rgba(212,168,67,0.2);color:var(--yellow);">SL</span>':''}</td>
+        ${monthCells.join('')}
+        ${isStunden
+          ? `<td class="total-col">—</td>`
+          : `<td class="total-col ${cumCls}">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</td>`}
+        <td class="sick-col">${totalSickAll>0?totalSickAll+'T':'—'}</td>
+        <td class="vac-col">${totalVacDays}T</td>
+        <td class="${remainVac<0?'neg':'vac-col'}">${remainVac}T</td>
+      </tr>`;
+    }
+
+    html += '</tbody></table>';
+    content.innerHTML = html;
   };
 
   // ── KRANKMELDUNGEN ──
