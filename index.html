@@ -696,11 +696,11 @@
       const holidays=getBernHolidays(overviewYear).map(h=>h.date);
       let vacDays=0;
       vacations.forEach(v=>{
-        const f=new Date(v.from+'T12:00:00'), t=new Date(v.to+'T12:00:00');
+        const f=v.from, t=v.to;
         const d=new Date(overviewYear,overviewMonth,1);
         while(d.getMonth()===overviewMonth){
           const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          if(d>=f&&d<=t&&!holidays.includes(key))vacDays++;
+          if(key>=f&&key<=t&&!holidays.includes(key))vacDays++;
           d.setDate(d.getDate()+1);
         }
       });
@@ -748,11 +748,11 @@
       const vsnap3=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
       vsnap3.docs.forEach(d=>{
         const v=d.data();
-        const f=new Date(v.from+'T12:00:00'),t=new Date(v.to+'T12:00:00');
+        const f=v.from, t=v.to; // compare as strings YYYY-MM-DD
         const dd=new Date(overviewYear,overviewMonth,1);
         while(dd.getMonth()===overviewMonth){
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(dd>=f&&dd<=t&&!holidayMap[key])vacDaySet.add(key);
+          if(key>=f&&key<=t&&!holidayMap[key])vacDaySet.add(key);
           dd.setDate(dd.getDate()+1);
         }
       });
