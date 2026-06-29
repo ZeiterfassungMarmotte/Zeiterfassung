@@ -637,24 +637,31 @@
     requests.forEach(v=>{
       const u=allUsers.find(x=>x.id===v.uid);
       const item=document.createElement('div');
-      item.className='entry-item';item.style.marginBottom='8px';item.style.flexDirection='column';item.style.alignItems='flex-start';item.style.gap='10px';
-      item.innerHTML=`<div style="width:100%;display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div class="entry-date" style="font-size:15px;">${u?.name||'Unbekannt'}</div>
-          <div class="entry-detail">🌴 ${v.from} – ${v.to}</div>
-          ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
-          ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
-        </div>
-        ${filter==='pending'?`<div style="display:flex;gap:6px;">
+      item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='10px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date" style="font-size:15px;">${u?.name||'Unbekannt'}</div>
+        <div class="entry-detail">🌴 ${formatVacDate(v.from)}</div>
+        <div class="entry-detail">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+        ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        ${filter==='pending'?`
           <button class="btn btn-primary btn-sm" onclick="approveVacation('${v.id}')">✓ Genehmigen</button>
           <button class="btn btn-danger btn-sm" onclick="openReject('${v.id}')">✕ Ablehnen</button>
-        </div>`:''}
+        `:''}
+        <button class="btn btn-secondary btn-sm" onclick="adminDeleteVacation('${v.id}')">🗑</button>
       </div>`;
       list.appendChild(item);
     });
   };
 
-  window.approveVacation = async (id) => {
+  window.adminDeleteVacation = async (id) => {
+    if(!confirm('Diesen Ferienantrag wirklich löschen?'))return;
+    await deleteDoc(doc(db,'vacations',id));
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
     await updateDoc(doc(db,'vacations',id),{status:'approved'});
     loadVacationRequests(currentRequestFilter);
     loadPendingBadge();
@@ -940,24 +947,31 @@
     const m=document.getElementById('vacation-msg'); m.textContent='✓ Antrag eingereicht – wartet auf Genehmigung!'; setTimeout(()=>m.textContent='',3000);
     loadVacationList();
   };
+  function formatVacDate(dateStr) {
+    const p=dateStr.split('-');
+    const d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
+    return d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+
   async function loadVacationList() {
     const snap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
     const list=document.getElementById('vacation-list');
     if(snap.empty){list.innerHTML='<div class="empty-state">Keine Ferienanträge</div>';return;}
     list.innerHTML='<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Meine Anträge</div>';
-    snap.docs.sort((a,b)=>b.data().createdAt?.localeCompare(a.data().createdAt||'')).forEach(d=>{
+    snap.docs.sort((a,b)=>(b.data().createdAt||'').localeCompare(a.data().createdAt||'')).forEach(d=>{
       const v=d.data();
-      const status = v.status || 'approved'; // legacy entries = approved
-      const statusColor = status==='approved'?'var(--green)':status==='rejected'?'var(--red)':'var(--yellow)';
-      const statusLabel = status==='approved'?'✓ Genehmigt':status==='rejected'?'✕ Abgelehnt':'⏳ Ausstehend';
-      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';
-      item.innerHTML=`<div>
-        <div class="entry-date">🌴 ${v.from} – ${v.to}</div>
-        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+      const status=v.status||'approved';
+      const statusColor=status==='approved'?'var(--green)':status==='rejected'?'var(--red)':'var(--yellow)';
+      const statusLabel=status==='approved'?'✓ Genehmigt':status==='rejected'?'✕ Abgelehnt':'⏳ Ausstehend';
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">🌴 ${formatVacDate(v.from)}</div>
+        <div style="font-size:13px;color:var(--text-dim);">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail" style="margin-top:4px;">${v.note}</div>`:''}
         ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
         <div style="font-size:12px;font-weight:600;color:${statusColor};margin-top:4px;">${statusLabel}</div>
       </div>
-      ${status==='pending'?`<button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">✕</button>`:''}`;
+      <button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">🗑</button>`;
       list.appendChild(item);
     });
   }
