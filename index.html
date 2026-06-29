@@ -745,7 +745,12 @@
       const pct=(Number(currentProfile.employmentPercent)||100)/100;
       // Cumulative soll: Mo-Fr, no holidays, from startDate to end of current month
       let cumSollDays=0; const dc=new Date(startD);
-      while(dc<=endD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!allHolidays.has(key))cumSollDays++;dc.setDate(dc.getDate()+1);}
+      while(dc<=endD){
+        const dow=dc.getDay();
+        const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;
+        if(dow!==0&&dow!==6&&!allHolidays.has(key))cumSollDays++;
+        dc.setDate(dc.getDate()+1);
+      }
       const cumSoll=Math.round(cumSollDays*dailyMin*pct);
       // Cumulative vacation - reduces soll
       const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
@@ -762,7 +767,7 @@
       });
       const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin*pct);
       const cumDiff=cumWorked-cumNettoSoll;
-      console.log('GLEITZEIT DEBUG:', {cumWorked, cumSollDays, cumSoll, cumVacDays, vacMin: Math.round(cumVacDays*dailyMin*pct), cumNettoSoll, cumDiff, dailyMin, pct});
+      console.log('GLEITZEIT DEBUG:', {cumWorked, cumSollDays, cumSoll, cumVacDays, vacMin: Math.round(cumVacDays*dailyMin*pct), cumNettoSoll, cumDiff, dailyMin, pct, startDate, startD: startD.toISOString(), endD: endD.toISOString(), holidaysInJune: [...allHolidays].filter(h=>h.startsWith('2026-06'))});
       const overCard=document.createElement('div');
       overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
