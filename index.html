@@ -298,6 +298,7 @@
       <button class="admin-tab" onclick="showAdminPanel('panel-schedule-admin',this)">📋 Arbeitsplan</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-sick',this)">🤒 Krank</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
+      <button class="admin-tab" id="admin-tab-settings" onclick="showAdminPanel('panel-settings',this)" style="display:none;">🔧 Grundeinstellungen</button>
     </div>
 
     <!-- TEAM -->
@@ -472,11 +473,11 @@
           <div id="new-fixed-fields">
             <div class="form-row" style="margin-bottom:14px;">
               <div class="form-group" style="margin-bottom:0;"><label>Stellenprozent (%)</label><input type="number" id="new-percent" placeholder="100" min="10" max="100" onchange="calcNewHours()" /></div>
-              <div class="form-group" style="margin-bottom:0;"><label>Stunden bei 100%</label><input type="number" id="new-fulltime-hours" placeholder="42.5" step="0.5" onchange="calcNewHours()" /></div>
+              <div class="form-group" style="margin-bottom:0;"><label>Arbeitstage / Woche</label><input type="number" id="new-workdays" placeholder="5" min="1" max="6" onchange="calcNewHours()" /></div>
             </div>
             <div class="form-row" style="margin-bottom:14px;">
-              <div class="form-group" style="margin-bottom:0;"><label>Wochenstunden (auto)</label><input type="number" id="new-hours" placeholder="42.5" step="0.5" /></div>
-              <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr</label><input type="number" id="new-vacation-days" placeholder="20" /></div>
+              <div class="form-group" style="margin-bottom:0;"><label>Wochenstunden (auto)</label><input type="number" id="new-hours" placeholder="—" step="0.1" readonly style="opacity:0.7;" /></div>
+              <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr (auto)</label><input type="number" id="new-vacation-days" placeholder="—" step="0.1" readonly style="opacity:0.7;" /></div>
             </div>
             <div class="form-group"><label>Startdatum</label><input type="date" id="new-startdate" /></div>
           </div>
@@ -491,6 +492,14 @@
               <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
             </div>
           </div>
+          <div class="form-group" id="new-role-group" style="display:none;">
+            <label>Rolle</label>
+            <select id="new-role" style="width:100%;">
+              <option value="employee" selected>Mitarbeiter</option>
+              <option value="leitung">Leitung</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
           <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
             <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
             <input type="checkbox" id="new-can-vacation" checked style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
@@ -498,6 +507,20 @@
           <div id="admin-error" class="error-msg" style="margin-bottom:8px;"></div>
           <div id="admin-success" class="success-msg" style="margin-bottom:8px;"></div>
           <button class="btn btn-primary" onclick="createUser()">Mitarbeitenden erstellen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRUNDEINSTELLUNGEN (nur Admin) -->
+    <div class="admin-panel" id="panel-settings">
+      <div class="admin-section">
+        <h3>Grundeinstellungen</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Gelten für ein 100%-Pensum. Wochenstunden und Ferientage werden bei der Mitarbeitenden-Erstellung automatisch anhand des Pensums daraus berechnet.</div>
+        <div class="status-card">
+          <div class="form-group"><label>Wochenarbeitszeit bei 100% (Std.)</label><input type="number" id="settings-fulltime-hours" placeholder="42.5" step="0.5" /></div>
+          <div class="form-group"><label>Ferientage bei 100% (Tage/Jahr)</label><input type="number" id="settings-vacation-days" placeholder="25" step="0.5" /></div>
+          <div id="settings-msg" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="saveGlobalSettings()">Speichern</button>
         </div>
       </div>
     </div>
@@ -589,11 +612,11 @@
     <div id="ue-fixed-fields">
       <div class="form-row" style="margin-bottom:14px;">
         <div class="form-group" style="margin-bottom:0;"><label>Stellenprozent (%)</label><input type="number" id="ue-percent" min="10" max="100" onchange="calcUeHours()" /></div>
-        <div class="form-group" style="margin-bottom:0;"><label>Stunden bei 100%</label><input type="number" id="ue-fulltime-hours" step="0.5" onchange="calcUeHours()" /></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Arbeitstage / Woche</label><input type="number" id="ue-workdays" min="1" max="6" onchange="calcUeHours()" /></div>
       </div>
       <div class="form-row" style="margin-bottom:14px;">
-        <div class="form-group" style="margin-bottom:0;"><label>Wochenstunden (auto)</label><input type="number" id="ue-hours" step="0.5" /></div>
-        <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr</label><input type="number" id="ue-vacation" /></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Wochenstunden (auto)</label><input type="number" id="ue-hours" step="0.1" readonly style="opacity:0.7;" /></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr (auto)</label><input type="number" id="ue-vacation" step="0.1" readonly style="opacity:0.7;" /></div>
       </div>
       <div class="form-group"><label>Startdatum</label><input type="date" id="ue-startdate" /></div>
     </div>
@@ -607,6 +630,14 @@
         <label class="dept-check"><input type="checkbox" value="Laden & Tearoom" onchange="toggleDeptCheck(this)"> Laden & Tearoom</label>
         <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
       </div>
+    </div>
+    <div class="form-group" id="ue-role-group" style="display:none;">
+      <label>Rolle</label>
+      <select id="ue-role" style="width:100%;">
+        <option value="employee">Mitarbeiter</option>
+        <option value="leitung">Leitung</option>
+        <option value="admin">Admin</option>
+      </select>
     </div>
     <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
       <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
@@ -669,6 +700,10 @@
   const db = getFirestore(app);
 
   let currentUser = null, currentProfile = null, allUsers = [];
+  let globalSettings = { fulltimeHours: null, vacationDaysPerYear: null };
+  function isAdmin() { return currentProfile?.role === 'admin'; }
+  function isLeitung() { return currentProfile?.role === 'leitung'; }
+  function isAdminOrLeitung() { return isAdmin() || isLeitung(); }
   let overviewMonth = new Date().getMonth(), overviewYear = new Date().getFullYear();
   let selectedDept = null; // beim Stempeln
 
@@ -699,22 +734,51 @@
   function calcWorked(e) { if(!e.startMin||!e.endMin)return 0; let w=e.endMin-e.startMin; if(e.pauseStartMin&&e.pauseEndMin)w-=(e.pauseEndMin-e.pauseStartMin); return Math.max(0,w); }
   function getSoll(year, month, profile) {
     const p = profile || currentProfile;
-    const fulltimeH = Number(p?.fulltimeHours) || 42.5;
-    const percent = Number(p?.employmentPercent) || 100;
-    const dailyMin = (fulltimeH / 5) * 60;
+    const weeklyHours = Number(p?.weeklyHours) || 0;
+    const workdaysPerWeek = Number(p?.workdaysPerWeek) || 5;
+    const dailyMin = (weeklyHours / workdaysPerWeek) * 60;
     const holidays = getBernHolidays(year).map(h => h.date);
     let workDays = 0;
     const d = new Date(year, month, 1);
     while (d.getMonth() === month) {
-      const dow = d.getDay();
       const key = `${year}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      if (dow !== 0 && dow !== 6 && !holidays.includes(key)) workDays++;
+      if (isWorkday(d, workdaysPerWeek) && !holidays.includes(key)) workDays++;
       d.setDate(d.getDate() + 1);
     }
-    return Math.round(workDays * (percent / 100) * dailyMin);
+    return Math.round(workDays * dailyMin);
   }
 
-  // ── CLOCK ──
+  async function loadGlobalSettings() {
+    try {
+      const snap = await getDoc(doc(db,'settings','global'));
+      if (snap.exists()) {
+        globalSettings = snap.data();
+        const fh = document.getElementById('settings-fulltime-hours');
+        const vd = document.getElementById('settings-vacation-days');
+        if (fh) fh.value = globalSettings.fulltimeHours ?? '';
+        if (vd) vd.value = globalSettings.vacationDaysPerYear ?? '';
+      }
+    } catch (e) { console.error('Grundeinstellungen konnten nicht geladen werden:', e); }
+  }
+  window.saveGlobalSettings = async () => {
+    const fulltimeHours = Number(document.getElementById('settings-fulltime-hours').value);
+    const vacationDaysPerYear = Number(document.getElementById('settings-vacation-days').value);
+    const msg = document.getElementById('settings-msg');
+    if (!fulltimeHours || !vacationDaysPerYear) { msg.style.color='var(--red)'; msg.textContent='Bitte beide Felder ausfüllen.'; return; }
+    await setDoc(doc(db,'settings','global'), {fulltimeHours, vacationDaysPerYear});
+    globalSettings = {fulltimeHours, vacationDaysPerYear};
+    msg.style.color='var(--green)'; msg.textContent='✓ Gespeichert!';
+    setTimeout(()=>msg.textContent='',3000);
+  };
+  // Arbeitstage/Woche -> welche Wochentage (immer ab Montag) zählen als Arbeitstag
+  function isWorkday(date, workdaysPerWeek) {
+    const wpw = workdaysPerWeek || 5;
+    const dow = date.getDay(); // 0=So..6=Sa
+    const idx = dow === 0 ? 7 : dow; // Mo=1..So=7
+    return idx <= wpw;
+  }
+
+
   function updateClock(){const n=new Date();document.getElementById('live-clock').textContent=n.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('live-date').textContent=n.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
   setInterval(updateClock,1000);updateClock();
 
@@ -723,7 +787,7 @@
     if (user) {
       currentUser = user;
       const snap = await getDoc(doc(db,'users',user.uid));
-      currentProfile = snap.exists() ? snap.data() : {name:user.email,role:'employee',weeklyHours:42,vacationDaysPerYear:20,departments:[]};
+      currentProfile = snap.exists() ? snap.data() : {name:user.email,role:'employee',weeklyHours:42,workdaysPerWeek:5,vacationDaysPerYear:20,departments:[]};
       document.getElementById('header-name').textContent = currentProfile.name || user.email;
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
@@ -732,9 +796,14 @@
       // Show/hide vacation tab based on profile
       document.getElementById('nav-vacation').style.display =
         (currentProfile.canUseVacation !== false) ? 'block' : 'none';
-      if (currentProfile.role === 'admin') {
-        document.getElementById('nav-admin').style.display = 'block';
+      if (isAdmin() || isLeitung()) {
+        const navBtn = document.getElementById('nav-admin');
+        navBtn.style.display = 'block';
+        navBtn.textContent = isAdmin() ? '⚙️ Admin' : '🧑\u200d💼 Leitung';
         document.getElementById('nav-vacation').style.display = 'block';
+        document.getElementById('admin-tab-settings').style.display = isAdmin() ? '' : 'none';
+        document.getElementById('new-role-group').style.display = isAdmin() ? 'block' : 'none';
+        if (isAdmin()) await loadGlobalSettings();
         loadAdminUsers().then(()=>populateSickSelects()); initHolidayYearSelect(); renderHolidays(); initAdminFilters();
         setTimeout(loadPendingBadge, 1000);
       }
@@ -793,6 +862,7 @@
     }
   }
   window.showAdminPanel = (id, btn) => {
+    if (id === 'panel-settings' && !isAdmin()) return; // nur Admin
     document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
     document.getElementById(id).classList.add('active'); btn.classList.add('active');
@@ -856,9 +926,8 @@
 
     for(const u of users) {
       const isStunden = u.employmentType === 'stundenlöhner';
-      const fulltimeH = Number(u.fulltimeHours)||42.5;
-      const pct = (Number(u.employmentPercent)||100)/100;
-      const dm = (fulltimeH/5)*60;
+      const wpw = Number(u.workdaysPerWeek)||5;
+      const dm = ((Number(u.weeklyHours)||0)/wpw)*60;
       const startDate = u.startDate || null;
 
       let cumDiff = 0;
@@ -880,14 +949,14 @@
         const entries = allEntries.filter(e=>e.uid===u.id&&e.date>=mFrom&&e.date<=mTo);
         let worked=0; entries.forEach(e=>worked+=calcWorked(e));
 
-        // Vac days Mo-Fr
+        // Vac days (nur tatsächliche Arbeitstage der Person)
         let vacDays=0;
         allVac.filter(v=>v.uid===u.id).forEach(v=>{
           const f=v.from,t=v.to;
           const d=new Date(year,m,1);
           while(d.getMonth()===m){
-            const dow=d.getDay(),key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
-            if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidays.includes(key))vacDays++;
+            const key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t&&isWorkday(d,wpw)&&!holidays.includes(key))vacDays++;
             d.setDate(d.getDate()+1);
           }
         });
@@ -899,8 +968,8 @@
           const f=v.from,t=v.to;
           const d=new Date(year,m,1);
           while(d.getMonth()===m){
-            const dow=d.getDay(),key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
-            if(key>=f&&key<=t){sickAll++;if(dow!==0&&dow!==6&&!holidays.includes(key))sickWork++;}
+            const key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t){sickAll++;if(isWorkday(d,wpw)&&!holidays.includes(key))sickWork++;}
             d.setDate(d.getDate()+1);
           }
         });
@@ -914,8 +983,8 @@
           let sollDays=0;
           const dc=new Date(effectiveFrom);
           const end=new Date(mTo);
-          while(dc<=end){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!holidays.includes(key))sollDays++;dc.setDate(dc.getDate()+1);}
-          const soll=Math.round(sollDays*dm*pct);
+          while(dc<=end){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(isWorkday(dc,wpw)&&!holidays.includes(key))sollDays++;dc.setDate(dc.getDate()+1);}
+          const soll=Math.round(sollDays*dm);
           const nettoSoll=soll-vacDays*dm-sickWork*dm;
           const diff=worked-nettoSoll;
           cumDiff+=diff;
@@ -1422,7 +1491,7 @@
   };
 
   async function loadPendingBadge() {
-    if(currentProfile?.role!=='admin')return;
+    if(!isAdminOrLeitung())return;
     const snap=await getDocs(query(collection(db,'vacations'),where('status','==','pending')));
     const badge=document.getElementById('requests-badge');
     if(badge){if(snap.size>0){badge.style.display='inline';badge.textContent=snap.size;}else{badge.style.display='none';}}
@@ -1540,21 +1609,19 @@
       const vsnap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       const vacations=vsnap.docs.map(d=>({id:d.id,...d.data()}));
       const holidays=getBernHolidays(overviewYear).map(h=>h.date);
+      const myWpw = Number(currentProfile?.workdaysPerWeek)||5;
       let vacDays=0;
       vacations.forEach(v=>{
         const f=v.from, t=v.to;
         const d=new Date(overviewYear,overviewMonth,1);
         while(d.getMonth()===overviewMonth){
-          const dow=d.getDay();
           const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!holidays.includes(key))vacDays++;
+          if(key>=f&&key<=t&&isWorkday(d,myWpw)&&!holidays.includes(key))vacDays++;
           d.setDate(d.getDate()+1);
         }
       });
-      const fulltimeH = Number(currentProfile?.fulltimeHours) || 42.5;
-      const percent = Number(currentProfile?.employmentPercent) || 100;
-      const dailyMin = (fulltimeH / 5) * 60;
-      // Load sick work days for this month (Mo-Fr only)
+      const dailyMin = ((Number(currentProfile?.weeklyHours)||0) / myWpw) * 60;
+      // Load sick work days for this month (nur tatsächliche Arbeitstage)
       const sickSnapEarly = await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
       const monthHolidaysEarly = getBernHolidays(overviewYear).map(h=>h.date);
       let sickWorkDays = 0;
@@ -1562,9 +1629,8 @@
         const v=d.data(); const f=v.from, t=v.to;
         const dd=new Date(overviewYear,overviewMonth,1);
         while(dd.getMonth()===overviewMonth){
-          const dow=dd.getDay();
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!monthHolidaysEarly.includes(key))sickWorkDays++;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw)&&!monthHolidaysEarly.includes(key))sickWorkDays++;
           dd.setDate(dd.getDate()+1);
         }
       });
@@ -1591,18 +1657,16 @@
       const endD = new Date(overviewYear, overviewMonth+1, 0);
       const allHolidays = new Set();
       for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
-      const fulltimeH=(Number(currentProfile.fulltimeHours)||42.5);
-      const dailyMin=fulltimeH/5*60;
-      const pct=(Number(currentProfile.employmentPercent)||100)/100;
-      // Cumulative soll: Mo-Fr, no holidays, from startDate to end of current month
+      const myWpw2 = Number(currentProfile.workdaysPerWeek)||5;
+      const dailyMin=((Number(currentProfile.weeklyHours)||0)/myWpw2)*60;
+      // Cumulative soll: tatsächliche Arbeitstage, ohne Feiertage, ab Startdatum bis Ende aktueller Monat
       let cumSollDays=0; const dc=new Date(startD);
       while(dc<=endD){
-        const dow=dc.getDay();
         const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;
-        if(dow!==0&&dow!==6&&!allHolidays.has(key))cumSollDays++;
+        if(isWorkday(dc,myWpw2)&&!allHolidays.has(key))cumSollDays++;
         dc.setDate(dc.getDate()+1);
       }
-      const cumSoll=Math.round(cumSollDays*dailyMin*pct);
+      const cumSoll=Math.round(cumSollDays*dailyMin);
       // Cumulative vacation - reduces soll
       const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
       let cumVacDays=0;
@@ -1610,13 +1674,12 @@
         const v=d.data(); const f=v.from, t=v.to;
         const dd=new Date(startD);
         while(dd<=endD){
-          const dow=dd.getDay();
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!allHolidays.has(key))cumVacDays++;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw2)&&!allHolidays.has(key))cumVacDays++;
           dd.setDate(dd.getDate()+1);
         }
       });
-      const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin*pct);
+      const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin);
       // Also subtract sick work days from cumulative soll
       const cumSickSnap=await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
       let cumSickWorkDays=0;
@@ -1624,13 +1687,12 @@
         const v=d.data(); const f=v.from, t=v.to;
         const dd=new Date(startD);
         while(dd<=endD){
-          const dow=dd.getDay();
           const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&dow!==0&&dow!==6&&!allHolidays.has(key))cumSickWorkDays++;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw2)&&!allHolidays.has(key))cumSickWorkDays++;
           dd.setDate(dd.getDate()+1);
         }
       });
-      const cumFinalSoll=cumNettoSoll - Math.round(cumSickWorkDays*dailyMin*pct);
+      const cumFinalSoll=cumNettoSoll - Math.round(cumSickWorkDays*dailyMin);
       const cumDiff=cumWorked-cumFinalSoll;
       const overCard=document.createElement('div');
       overCard.id='gleitzeit-card';
@@ -1670,7 +1732,7 @@
       while(dd.getMonth()===overviewMonth){
         const dow=dd.getDay();
         const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-        if(key>=f&&key<=t){ sickDaySet.add(key); if(dow!==0&&dow!==6&&!holidayMap[key])sickWorkDaySet.add(key); }
+        if(key>=f&&key<=t){ sickDaySet.add(key); if(isWorkday(dd,Number(currentProfile?.workdaysPerWeek)||5)&&!holidayMap[key])sickWorkDaySet.add(key); }
         dd.setDate(dd.getDate()+1);
       }
     });
@@ -1794,7 +1856,7 @@
     document.getElementById('ue-name').value=u.name||'';
     document.getElementById('ue-personnel').value=u.personnelNumber||'';
     document.getElementById('ue-percent').value=u.employmentPercent||100;
-    document.getElementById('ue-fulltime-hours').value=u.fulltimeHours||42.5;
+    document.getElementById('ue-workdays').value=u.workdaysPerWeek||5;
     document.getElementById('ue-hours').value=u.weeklyHours||'';
     document.getElementById('ue-vacation').value=u.vacationDaysPerYear||'';
     document.getElementById('ue-startdate').value=u.startDate||'';
@@ -1802,6 +1864,8 @@
     document.getElementById('ue-stunden-startdate-group').style.display = empType==='stundenlöhner' ? 'block' : 'none';
     document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
     document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
+    document.getElementById('ue-role-group').style.display = isAdmin() ? 'block' : 'none';
+    if(document.getElementById('ue-role'))document.getElementById('ue-role').value = u.role || 'employee';
     document.querySelector(`input[name="ue-emp-type"][value="${empType}"]`).checked=true;
     window.toggleUeEmpType();
     document.getElementById('user-edit-modal').classList.add('open');
@@ -1812,11 +1876,11 @@
     const canUseVacation=document.getElementById('ue-can-vacation').checked;
     const empType=document.querySelector('input[name="ue-emp-type"]:checked').value;
     const isStunden = empType === 'stundenlöhner';
-    await updateDoc(doc(db,'users',uid),{
+    const updateData={
       name:document.getElementById('ue-name').value.trim(),
       personnelNumber:document.getElementById('ue-personnel').value.trim(),
       employmentPercent: isStunden ? 0 : Number(document.getElementById('ue-percent').value),
-      fulltimeHours: isStunden ? 0 : Number(document.getElementById('ue-fulltime-hours').value),
+      workdaysPerWeek: isStunden ? 0 : Number(document.getElementById('ue-workdays').value),
       weeklyHours:isStunden ? 0 : Number(document.getElementById('ue-hours').value),
       vacationDaysPerYear:isStunden ? 0 : Number(document.getElementById('ue-vacation').value),
       startDate: isStunden
@@ -1824,7 +1888,9 @@
         : (document.getElementById('ue-startdate').value || null),
       departments:depts, canUseVacation: isStunden ? false : canUseVacation,
       employmentType:empType
-    });
+    };
+    if (isAdmin() && document.getElementById('ue-role')) updateData.role = document.getElementById('ue-role').value;
+    await updateDoc(doc(db,'users',uid), updateData);
     closeModal('user-edit-modal'); loadAdminUsers();
   };
   window.toggleUserActive=async(uid,inactive)=>{await updateDoc(doc(db,'users',uid),{active:inactive});loadAdminUsers();};
@@ -1863,37 +1929,37 @@
       let entries=allEntries.filter(e=>e.uid===u.id);
       if(deptFilter)entries=entries.filter(e=>e.department===deptFilter);
       let worked=0; entries.forEach(e=>worked+=calcWorked(e));
-      const fulltimeH=Number(u.fulltimeHours)||42.5, pct=(Number(u.employmentPercent)||100)/100, dm=(fulltimeH/5)*60;
+      const wpw=Number(u.workdaysPerWeek)||5, dm=((Number(u.weeklyHours)||0)/wpw)*60;
       const allHolidays=new Set();
       const fromD=new Date(effectiveFrom), toD=new Date(toVal);
       for(let yr=fromD.getFullYear();yr<=toD.getFullYear();yr++)getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
 
-      // Vacation days Mo-Fr
+      // Vacation days (nur tatsächliche Arbeitstage)
       let vacDays=0;
       allVac.filter(v=>v.uid===u.id).forEach(v=>{
         const f=v.from, t=v.to;
         const d=new Date(fromD);
-        while(d<=toD){const dow=d.getDay(),key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&dow!==0&&dow!==6&&!allHolidays.has(key))vacDays++;d.setDate(d.getDate()+1);}
+        while(d<=toD){const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&isWorkday(d,wpw)&&!allHolidays.has(key))vacDays++;d.setDate(d.getDate()+1);}
       });
 
-      // Sick days - all days for display, Mo-Fr for soll
+      // Sick days - all days for display, nur Arbeitstage für Soll
       let sickAllDays=0, sickWorkDays=0;
       allSick.filter(v=>v.uid===u.id).forEach(v=>{
         const f=v.from, t=v.to;
         const d=new Date(fromD);
         while(d<=toD){
-          const dow=d.getDay(),key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t){sickAllDays++;if(dow!==0&&dow!==6&&!allHolidays.has(key))sickWorkDays++;}
+          const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t){sickAllDays++;if(isWorkday(d,wpw)&&!allHolidays.has(key))sickWorkDays++;}
           d.setDate(d.getDate()+1);
         }
       });
 
-      // Soll days Mo-Fr from effectiveFrom
+      // Soll days (nur tatsächliche Arbeitstage) ab effectiveFrom
       let sollDays=0; const dc=new Date(fromD);
-      while(dc<=toD){const dow=dc.getDay(),key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(dow!==0&&dow!==6&&!allHolidays.has(key))sollDays++;dc.setDate(dc.getDate()+1);}
+      while(dc<=toD){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(isWorkday(dc,wpw)&&!allHolidays.has(key))sollDays++;dc.setDate(dc.getDate()+1);}
 
       const isStunden = u.employmentType === 'stundenlöhner';
-      const brutto = notStartedYet ? 0 : Math.round(sollDays*dm*pct);
+      const brutto = notStartedYet ? 0 : Math.round(sollDays*dm);
       const soll = isStunden ? null : brutto - vacDays*dm - sickWorkDays*dm;
       const diff = isStunden ? null : worked - soll;
 
@@ -2023,26 +2089,19 @@
   window.renderHolidays=()=>{const y=Number(document.getElementById('holiday-year')?.value||new Date().getFullYear()),hs=getBernHolidays(y),list=document.getElementById('holiday-list');list.innerHTML='';hs.forEach(h=>{const d=new Date(h.date+'T12:00:00'),ds=d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'});const row=document.createElement('div');row.className='holiday-row';row.innerHTML=`<span>🎉 ${h.name}</span><span style="font-size:13px;color:var(--text-dim);">${ds}</span>`;list.appendChild(row);});};
 
   // ── NEUER NUTZER ──
-  // ── STELLENPROZENT BERECHNUNG ──
+  // ── STELLENPROZENT BERECHNUNG (aus Grundeinstellungen) ──
   window.calcNewHours = () => {
     const pct = Number(document.getElementById('new-percent').value);
-    const full = Number(document.getElementById('new-fulltime-hours').value);
-    if (pct && full) document.getElementById('new-hours').value = Math.round(full * pct / 100 * 10) / 10;
+    const fh = Number(globalSettings.fulltimeHours), vd = Number(globalSettings.vacationDaysPerYear);
+    if (pct && fh) document.getElementById('new-hours').value = Math.round(fh * pct / 100 * 10) / 10;
+    if (pct && vd) document.getElementById('new-vacation-days').value = Math.round(vd * pct / 100 * 10) / 10;
   };
   window.calcUeHours = () => {
     const pct = Number(document.getElementById('ue-percent').value);
-    const full = Number(document.getElementById('ue-fulltime-hours').value);
-    if (pct && full) document.getElementById('ue-hours').value = Math.round(full * pct / 100 * 10) / 10;
+    const fh = Number(globalSettings.fulltimeHours), vd = Number(globalSettings.vacationDaysPerYear);
+    if (pct && fh) document.getElementById('ue-hours').value = Math.round(fh * pct / 100 * 10) / 10;
+    if (pct && vd) document.getElementById('ue-vacation').value = Math.round(vd * pct / 100 * 10) / 10;
   };
-
-  // ── ARBEITSTAGE AUS STELLENPROZENT ──
-  function getWorkdaysPerWeek(percent) {
-    if (percent >= 100) return 5;
-    if (percent >= 80) return 4;
-    if (percent >= 60) return 3;
-    if (percent >= 40) return 2;
-    return 1;
-  }
 
   window.toggleNewEmpType = () => {
     const isStunden = document.querySelector('input[name="new-emp-type"]:checked').value === 'stundenlöhner';
@@ -2065,7 +2124,7 @@
     const empType=document.querySelector('input[name="new-emp-type"]:checked').value;
     const isStunden = empType === 'stundenlöhner';
     const percent = isStunden ? 0 : Number(document.getElementById('new-percent').value);
-    const fulltimeHours = isStunden ? 0 : Number(document.getElementById('new-fulltime-hours').value);
+    const workdaysPerWeek = isStunden ? 0 : Number(document.getElementById('new-workdays').value);
     const hours = isStunden ? 0 : Number(document.getElementById('new-hours').value);
     const vac = isStunden ? 0 : Number(document.getElementById('new-vacation-days').value);
     const startDate = isStunden
@@ -2073,15 +2132,17 @@
       : (document.getElementById('new-startdate').value || null);
     const depts=[...document.querySelectorAll('#new-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
     const canUseVacation = document.getElementById('new-can-vacation').checked;
+    const role = isAdmin() ? document.getElementById('new-role').value : 'employee';
     const err=document.getElementById('admin-error'), suc=document.getElementById('admin-success');
     err.textContent='';suc.textContent='';
-    if(!name||!email||!pass||(!isStunden&&!hours)){err.textContent='Bitte alle Pflichtfelder ausfüllen.';return;}
+    if(!name||!email||!pass||(!isStunden&&(!hours||!workdaysPerWeek))){err.textContent='Bitte alle Pflichtfelder ausfüllen (inkl. Arbeitstage/Woche).';return;}
     try{
       const cred=await createUserWithEmailAndPassword(auth,email,pass);
-      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,fulltimeHours,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role:'employee',active:true,departments:depts,canUseVacation,employmentType:empType});
-      ['new-name','new-personnel','new-email','new-pass','new-percent','new-fulltime-hours','new-hours','new-vacation-days','new-startdate','new-startdate-stunden'].forEach(id=>document.getElementById(id).value='');
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,canUseVacation,employmentType:empType});
+      ['new-name','new-personnel','new-email','new-pass','new-percent','new-workdays','new-hours','new-vacation-days','new-startdate','new-startdate-stunden'].forEach(id=>document.getElementById(id).value='');
       document.querySelectorAll('#new-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.dept-check').classList.remove('checked');});
       document.getElementById('new-can-vacation').checked=true;
+      if(document.getElementById('new-role'))document.getElementById('new-role').value='employee';
       document.querySelector('input[name="new-emp-type"][value="festangestellt"]').checked=true;
       window.toggleNewEmpType();
       suc.textContent=`✓ ${name} wurde erstellt!`; setTimeout(()=>suc.textContent='',3000);
@@ -2094,9 +2155,8 @@
     const u = allUsers.find(x => x.id === uid);
     if (!u) return;
     const isStunden = u.employmentType === 'stundenlöhner';
-    const fulltimeH = Number(u.fulltimeHours) || 42.5;
-    const pct = (Number(u.employmentPercent) || 100) / 100;
-    const dailyMin = (fulltimeH / 5) * 60;
+    const wpw = Number(u.workdaysPerWeek) || 5;
+    const dailyMin = ((Number(u.weeklyHours)||0) / wpw) * 60;
 
     // Load entries
     const snap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',uid), where('date','>=',fromVal), where('date','<=',toVal)));
@@ -2109,19 +2169,18 @@
     const holidays = getBernHolidays(new Date(fromVal+'T12:00:00').getFullYear());
     const holidayMap = {}; holidays.forEach(h => holidayMap[h.date]=h.name);
 
-    // Build vacation day set (all days incl Sa/So for display, Mo-Fr for soll)
+    // Build vacation day set (all days incl Sa/So for display, nur Arbeitstage für Soll)
     const vacDaySet = new Set(); // all days for display
-    const vacWorkDaySet = new Set(); // Mo-Fr only for soll
+    const vacWorkDaySet = new Set(); // nur tatsächliche Arbeitstage für soll
     vacations.forEach(v => {
       const f=v.from, t=v.to;
       const d = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
       const end = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
       while(d<=end){
-        const dow=d.getDay();
         const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         if(key>=f&&key<=t&&!holidayMap[key]){
           vacDaySet.add(key);
-          if(dow!==0&&dow!==6)vacWorkDaySet.add(key);
+          if(isWorkday(d,wpw))vacWorkDaySet.add(key);
         }
         d.setDate(d.getDate()+1);
       }
@@ -2130,24 +2189,23 @@
     // Calculate totals
     let totalWorked = 0;
     Object.values(entryMap).forEach(e => totalWorked += calcWorked(e));
-    const vacDaysInPeriod = vacWorkDaySet.size; // only Mo-Fr for calculations
+    const vacDaysInPeriod = vacWorkDaySet.size; // nur tatsächliche Arbeitstage
     const fromDate = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
     const toDate = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
     const monthName = fromDate.toLocaleDateString('de-CH', {month:'long', year:'numeric'});
 
-    // Build sick day set for PDF (all days for display, Mo-Fr for soll)
+    // Build sick day set for PDF (all days for display, nur Arbeitstage für Soll)
     const pdfSickDaySet = new Set(); // all days
-    const pdfSickWorkDaySet = new Set(); // Mo-Fr only
+    const pdfSickWorkDaySet = new Set(); // nur tatsächliche Arbeitstage
     const sickSnapPdf = await getDocs(query(collection(db,'sickDays'), where('uid','==',uid)));
     sickSnapPdf.docs.forEach(d=>{
       const v=d.data(); const f=v.from, t=v.to;
       const cur2=new Date(fromDate);
       while(cur2<=toDate){
-        const dow=cur2.getDay();
         const key=`${cur2.getFullYear()}-${String(cur2.getMonth()+1).padStart(2,'0')}-${String(cur2.getDate()).padStart(2,'0')}`;
         if(key>=f&&key<=t){
           pdfSickDaySet.add(key);
-          if(dow!==0&&dow!==6&&!holidayMap[key])pdfSickWorkDaySet.add(key);
+          if(isWorkday(cur2,wpw)&&!holidayMap[key])pdfSickWorkDaySet.add(key);
         }
         cur2.setDate(cur2.getDate()+1);
       }
