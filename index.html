@@ -612,7 +612,10 @@
       <div class="form-group" style="margin-bottom:0;" id="ue-hours-group"><label>Wochenstunden (auto)</label><input type="number" id="ue-hours" step="0.1" readonly style="opacity:0.7;" /></div>
       <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr (auto)</label><input type="number" id="ue-vacation" step="0.1" readonly style="opacity:0.7;" /></div>
     </div>
-    <div class="form-group"><label>Startdatum</label><input type="date" id="ue-startdate" /></div>
+    <div class="form-row" style="margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:0;"><label>Startdatum</label><input type="date" id="ue-startdate" /></div>
+      <div class="form-group" style="margin-bottom:0;"><label>Enddatum (Austritt, optional)</label><input type="date" id="ue-enddate" /></div>
+    </div>
     <div class="form-group">
       <label>Abteilungen</label>
       <div class="dept-check-group" id="ue-dept-group">
@@ -1638,53 +1641,71 @@
     const oldVacCard = document.getElementById('feriensaldo-card');
     if (oldVacCard) oldVacCard.remove();
 
-    // Feriensaldo (alle mit Startdatum & canUseVacation) - Stand jeweils Anfang des angezeigten Monats
+    // Feriensaldo (alle mit Startdatum & canUseVacation) - voller (anteiliger) Jahresanspruch ab erstem Monat des jeweiligen Jahres,
+    // läuft über Jahre kumuliert weiter (unbegrenzter Übertrag), wird am Austrittsdatum eingefroren
     if (currentProfile?.startDate && currentProfile.canUseVacation !== false) {
       const [sy, sm] = currentProfile.startDate.split('-').map(Number);
       const startMonthIdx = sy*12 + (sm-1);
       const curMonthIdx = overviewYear*12 + overviewMonth;
-      const monthsAccrued = Math.max(0, curMonthIdx - startMonthIdx);
-      const annualVac = Number(currentProfile.vacationDaysPerYear)||0;
-      const accruedVac = monthsAccrued * (annualVac/12);
-      const myWpwVac = Number(currentProfile.workdaysPerWeek)||5;
-      const vacHolidays = new Set();
-      for(let yr=sy; yr<=overviewYear; yr++) getBernHolidays(yr).forEach(h=>vacHolidays.add(h.date));
-      const vsnap3 = await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
-      let takenBeforeMonth=0;
-      const limitD = new Date(overviewYear, overviewMonth, 1);
-      vsnap3.docs.forEach(d=>{
-        const v=d.data(); const f=v.from, t=v.to;
-        const dd=new Date(sy, sm-1, 1);
-        while(dd<limitD){
-          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
-          if(key>=f&&key<=t&&isWorkday(dd,myWpwVac)&&!vacHolidays.has(key))takenBeforeMonth++;
-          dd.setDate(dd.getDate()+1);
-        }
-      });
-      const feriensaldo = accruedVac - takenBeforeMonth;
-      const vacCard=document.createElement('div');
-      vacCard.id='feriensaldo-card';
-      vacCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
-      const displayStartVac = new Date(overviewYear, overviewMonth, 1).toLocaleDateString('de-CH');
-      vacCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Feriensaldo (Stand ${displayStartVac})</div>
-        <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${feriensaldo>=0?'var(--text)':'var(--red)'};">${feriensaldo.toFixed(1)} Tage</div>`;
-      list.parentNode.insertBefore(vacCard,list);
+      if (curMonthIdx >= startMonthIdx) {
+        const annualVac = Number(currentProfile.vacationDaysPerYear)||0;
+        let ey=null, em=null;
+        if (currentProfile.endDate) { const p=currentProfile.endDate.split('-').map(Number); ey=p[0]; em=p[1]; }
+        const yearEntitlement = (year) => {
+          if (ey!==null && year>ey) return 0;
+          if (year<sy) return 0;
+          const sMonth = (year===sy) ? sm : 1;
+          const eMonth = (ey!==null && year===ey) ? em : 12;
+          if (eMonth<sMonth) return 0;
+          return annualVac * (eMonth-sMonth+1)/12;
+        };
+        const effectiveYear = (ey!==null && overviewYear>ey) ? ey : overviewYear;
+        let cumEntitlement=0;
+        for(let y=sy;y<=effectiveYear;y++) cumEntitlement+=yearEntitlement(y);
+
+        const myWpwVac = Number(currentProfile.workdaysPerWeek)||5;
+        const vacHolidays = new Set();
+        for(let yr=sy; yr<=overviewYear; yr++) getBernHolidays(yr).forEach(h=>vacHolidays.add(h.date));
+        const vsnap3 = await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
+        let takenBeforeMonth=0;
+        const limitD = new Date(overviewYear, overviewMonth, 1);
+        vsnap3.docs.forEach(d=>{
+          const v=d.data(); const f=v.from, t=v.to;
+          const dd=new Date(sy, sm-1, 1);
+          while(dd<limitD){
+            const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t&&isWorkday(dd,myWpwVac)&&!vacHolidays.has(key))takenBeforeMonth++;
+            dd.setDate(dd.getDate()+1);
+          }
+        });
+        const feriensaldo = cumEntitlement - takenBeforeMonth;
+        const vacCard=document.createElement('div');
+        vacCard.id='feriensaldo-card';
+        vacCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
+        const displayStartVac = new Date(overviewYear, overviewMonth, 1).toLocaleDateString('de-CH');
+        const vacFrozenNote = (ey!==null && overviewYear>ey) ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Eingefroren per Austritt ${new Date(currentProfile.endDate+'T12:00:00').toLocaleDateString('de-CH')}</div>` : '';
+        vacCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Feriensaldo (Stand ${displayStartVac})</div>
+          <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${feriensaldo>=0?'var(--text)':'var(--red)'};">${feriensaldo.toFixed(1)} Tage</div>${vacFrozenNote}`;
+        list.parentNode.insertBefore(vacCard,list);
+      }
     }
 
-    // Gleitzeitkonto (nur Festangestellte mit Startdatum)
+    // Gleitzeitkonto (nur Festangestellte mit Startdatum) - friert am Austrittsdatum ein, falls gesetzt
     if (!isStunden && currentProfile?.startDate) {
       const startDate = currentProfile.startDate;
-      const endOfMonth = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-${String(new Date(overviewYear, overviewMonth+1, 0).getDate()).padStart(2,'0')}`;
+      const naturalEndOfMonth = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-${String(new Date(overviewYear, overviewMonth+1, 0).getDate()).padStart(2,'0')}`;
+      const isFrozen = currentProfile.endDate && currentProfile.endDate < naturalEndOfMonth;
+      const endOfMonth = isFrozen ? currentProfile.endDate : naturalEndOfMonth;
       const allSnap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',currentUser.uid), where('date','>=',startDate), where('date','<=',endOfMonth)));
       const allEntries = allSnap.docs.map(d=>d.data());
       let cumWorked = 0; allEntries.forEach(e=>cumWorked+=calcWorked(e));
       const startD = new Date(startDate.split('-')[0], startDate.split('-')[1]-1, startDate.split('-')[2]);
-      const endD = new Date(overviewYear, overviewMonth+1, 0);
+      const endD = new Date(endOfMonth.split('-')[0], endOfMonth.split('-')[1]-1, endOfMonth.split('-')[2]);
       const allHolidays = new Set();
       for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
       const myWpw2 = Number(currentProfile.workdaysPerWeek)||5;
       const dailyMin=((Number(currentProfile.weeklyHours)||0)/myWpw2)*60;
-      // Cumulative soll: tatsächliche Arbeitstage, ohne Feiertage, ab Startdatum bis Ende aktueller Monat
+      // Cumulative soll: tatsächliche Arbeitstage, ohne Feiertage, ab Startdatum bis Ende aktueller Monat (oder Austrittsdatum)
       let cumSollDays=0; const dc=new Date(startD);
       while(dc<=endD){
         const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;
@@ -1723,8 +1744,9 @@
       overCard.id='gleitzeit-card';
       overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
       const displayStart = new Date(overviewYear, overviewMonth, 1).toLocaleDateString('de-CH');
+      const frozenNote = isFrozen ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Eingefroren per Austritt ${new Date(currentProfile.endDate+'T12:00:00').toLocaleDateString('de-CH')}</div>` : '';
       overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Gleitzeitkonto (ab ${displayStart})</div>
-        <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${cumDiff>=0?'var(--green)':'var(--red)'};">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</div>`;
+        <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${cumDiff>=0?'var(--green)':'var(--red)'};">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</div>${frozenNote}`;
       list.parentNode.insertBefore(overCard,list);
     }
 
@@ -1882,6 +1904,7 @@
     document.getElementById('ue-hours').value=u.weeklyHours||'';
     document.getElementById('ue-vacation').value=u.vacationDaysPerYear||'';
     document.getElementById('ue-startdate').value=u.startDate||'';
+    document.getElementById('ue-enddate').value=u.endDate||'';
     document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
     document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
     document.getElementById('ue-role-group').style.display = isAdmin() ? 'block' : 'none';
@@ -1904,6 +1927,7 @@
       weeklyHours:isStunden ? 0 : Number(document.getElementById('ue-hours').value),
       vacationDaysPerYear: Number(document.getElementById('ue-vacation').value),
       startDate: document.getElementById('ue-startdate').value || null,
+      endDate: document.getElementById('ue-enddate').value || null,
       departments:depts, canUseVacation: canUseVacation,
       employmentType:empType
     };
