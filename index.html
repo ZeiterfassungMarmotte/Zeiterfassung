@@ -148,6 +148,7 @@
     .shift-item .shift-time { font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums; }
     .shift-item .shift-note { font-size:11px;color:var(--text-dim); }
     .shift-item.vacation { border-color:rgba(90,158,111,0.3);background:rgba(90,158,111,0.05); }
+    .shift-item.wish { border-color:rgba(108,158,200,0.3);background:rgba(108,158,200,0.05); }
     .shift-add-btn { background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;color:var(--text-dim);font-size:12px;cursor:pointer;width:100%;text-align:left;margin-bottom:4px; }
     .shift-add-btn:hover { border-color:var(--accent);color:var(--accent); }
     .kw-badge { display:inline-block;background:rgba(200,169,110,0.15);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:10px; }
@@ -216,7 +217,7 @@
   <nav>
     <button onclick="showPage('stamp')" id="nav-stamp" class="active">⏱ Stempeln</button>
     <button onclick="showPage('overview')" id="nav-overview">📊 Monate</button>
-    <button onclick="showPage('vacation')" id="nav-vacation">🌴 Ferien</button>
+    <button onclick="showPage('vacation')" id="nav-vacation">🌴 Ferien/Freiwünsche</button>
     <button onclick="showPage('schedule')" id="nav-schedule" style="display:none">📋 Arbeitsplan</button>
     <button onclick="showPage('admin')" id="nav-admin" style="display:none">⚙️ Admin</button>
   </nav>
@@ -261,17 +262,37 @@
     <div class="entries-list" id="entries-list"><div class="empty-state">Keine Einträge</div></div>
   </div>
 
-  <!-- FERIEN -->
+  <!-- FERIEN / FREIWÜNSCHE -->
   <div class="page" id="page-vacation">
-    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferienantrag einreichen</h2>
-    <div class="holiday-input">
-      <div class="form-group"><label>Von</label><input type="date" id="vacation-from" /></div>
-      <div class="form-group"><label>Bis</label><input type="date" id="vacation-to" /></div>
-      <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="vacation-note" placeholder="z.B. Sommerferien" /></div>
-      <div id="vacation-msg" class="success-msg" style="margin-bottom:8px;"></div>
-      <button class="btn btn-primary" onclick="addVacation()">Antrag einreichen</button>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="showVacationSubPanel('subpanel-ferien',this)">🌴 Ferien</button>
+      <button class="admin-tab" onclick="showVacationSubPanel('subpanel-freiwuensche',this)">☁️ Freiwünsche</button>
     </div>
-    <div id="vacation-list"></div>
+
+    <div class="vacation-subpanel" id="subpanel-ferien">
+      <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferienantrag einreichen</h2>
+      <div class="holiday-input">
+        <div class="form-group"><label>Von</label><input type="date" id="vacation-from" /></div>
+        <div class="form-group"><label>Bis</label><input type="date" id="vacation-to" /></div>
+        <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="vacation-note" placeholder="z.B. Sommerferien" /></div>
+        <div id="vacation-msg" class="success-msg" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary" onclick="addVacation()">Antrag einreichen</button>
+      </div>
+      <div id="vacation-list"></div>
+    </div>
+
+    <div class="vacation-subpanel" id="subpanel-freiwuensche" style="display:none;">
+      <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;">Freiwunsch eintragen</h2>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;">Freiwünsche müssen nicht genehmigt werden – die Leitung sieht sie bei der Arbeitsplan-Planung und kann sie nach Möglichkeit berücksichtigen.</div>
+      <div class="holiday-input">
+        <div class="form-group"><label>Von</label><input type="date" id="wish-from" /></div>
+        <div class="form-group"><label>Bis</label><input type="date" id="wish-to" /></div>
+        <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="wish-note" placeholder="z.B. Geburtstag" /></div>
+        <div id="wish-msg" class="success-msg" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary" onclick="addWish()">Freiwunsch eintragen</button>
+      </div>
+      <div id="wish-list"></div>
+    </div>
   </div>
 
   <!-- ARBEITSPLAN -->
@@ -835,7 +856,7 @@
     document.getElementById('page-'+page).classList.add('active');
     document.getElementById('nav-'+page).classList.add('active');
     if(page==='overview')loadOverview();
-    if(page==='vacation')loadVacationList();
+    if(page==='vacation'){loadVacationList();loadWishList();}
     if(page==='schedule')loadSchedule();
     if(page==='admin'){loadAdminUsers();loadLiveStamps();}
   };
@@ -854,6 +875,11 @@
       setTimeout(()=>notif.remove(), 4000);
     }
   }
+  window.showVacationSubPanel = (id, btn) => {
+    document.querySelectorAll('.vacation-subpanel').forEach(p=>p.style.display='none');
+    btn.parentElement.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(id).style.display='block'; btn.classList.add('active');
+  };
   window.showAdminPanel = (id, btn) => {
     if (id === 'panel-settings' && !isAdmin()) return; // nur Admin
     document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
@@ -1219,6 +1245,10 @@
     const vsnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
     const vacations = vsnap.docs.map(d=>d.data());
 
+    // Load wishes (Freiwünsche)
+    const wsnap = await getDocs(query(collection(db,'wishes'),where('from','<=',toKey)));
+    const wishes = wsnap.docs.map(d=>d.data()).filter(w=>w.to>=fromKey);
+
     const deptsToShow = myDepts.length > 0 ? myDepts : DEPTS_ORDER;
     content.innerHTML = '';
 
@@ -1253,6 +1283,17 @@
               dayDiv.appendChild(vi);
             }
           });
+
+          // Freiwunsch-Einträge für diesen Tag
+          allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+            const hasWish = wishes.some(w=>key>=w.from&&key<=w.to&&w.uid===u.id);
+            if(hasWish){
+              const wi=document.createElement('div');
+              wi.className='shift-item wish';
+              wi.innerHTML=`<div><div class="shift-name">☁️ ${u.name}</div><div class="shift-note">Freiwunsch</div></div>`;
+              dayDiv.appendChild(wi);
+            }
+          });
         }
 
         dayShifts.forEach(s => {
@@ -1267,7 +1308,9 @@
           dayDiv.appendChild(item);
         });
 
-        if(dayShifts.length===0 && !vacations.some(v=>days[di]>=new Date(v.from+'T12:00:00')&&days[di]<=new Date(v.to+'T12:00:00'))){
+        if(dayShifts.length===0
+           && !vacations.some(v=>days[di]>=new Date(v.from+'T12:00:00')&&days[di]<=new Date(v.to+'T12:00:00'))
+           && !wishes.some(w=>days[di]>=new Date(w.from+'T12:00:00')&&days[di]<=new Date(w.to+'T12:00:00'))){
           const empty = document.createElement('div');
           empty.style.cssText='font-size:12px;color:var(--text-dim);padding:4px 0;';
           empty.textContent='Keine Schichten';
@@ -1299,6 +1342,8 @@
     const shifts = snap.docs.map(d=>({id:d.id,...d.data()}));
     const vsnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
     const vacations = vsnap.docs.map(d=>d.data());
+    const wsnap = await getDocs(query(collection(db,'wishes'),where('from','<=',toKey)));
+    const wishes = wsnap.docs.map(d=>d.data()).filter(w=>w.to>=fromKey);
 
     const deptsToShow = deptFilter ? [deptFilter] : DEPTS_ORDER;
     content.innerHTML = '';
@@ -1327,6 +1372,17 @@
             vi.className='shift-item vacation';
             vi.innerHTML=`<div><div class="shift-name">🌴 ${u.name}</div><div class="shift-note">Ferien genehmigt</div></div>`;
             dayDiv.appendChild(vi);
+          }
+        });
+
+        // Freiwunsch entries
+        allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+          const hasWish = wishes.some(w=>key>=w.from&&key<=w.to&&w.uid===u.id);
+          if(hasWish){
+            const wi=document.createElement('div');
+            wi.className='shift-item wish';
+            wi.innerHTML=`<div><div class="shift-name">☁️ ${u.name}</div><div class="shift-note">Freiwunsch</div></div>`;
+            dayDiv.appendChild(wi);
           }
         });
 
@@ -1864,6 +1920,36 @@
     });
   }
   window.deleteVacation=async(id)=>{await deleteDoc(doc(db,'vacations',id));loadVacationList();};
+
+  // ── FREIWÜNSCHE ──
+  window.addWish = async () => {
+    const f=document.getElementById('wish-from').value, t=document.getElementById('wish-to').value, n=document.getElementById('wish-note').value;
+    if(!f||!t)return;
+    await setDoc(doc(db,'wishes',`${currentUser.uid}_wish_${Date.now()}`),{uid:currentUser.uid,from:f,to:t,note:n,createdAt:new Date().toISOString()});
+    document.getElementById('wish-from').value=''; document.getElementById('wish-to').value=''; document.getElementById('wish-note').value='';
+    const m=document.getElementById('wish-msg'); m.textContent='✓ Freiwunsch eingetragen!'; setTimeout(()=>m.textContent='',3000);
+    loadWishList();
+  };
+
+  async function loadWishList() {
+    const snap=await getDocs(query(collection(db,'wishes'),where('uid','==',currentUser.uid)));
+    const list=document.getElementById('wish-list');
+    if(!list)return;
+    if(snap.empty){list.innerHTML='<div class="empty-state">Keine Freiwünsche eingetragen</div>';return;}
+    list.innerHTML='<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Meine Freiwünsche</div>';
+    snap.docs.sort((a,b)=>(b.data().createdAt||'').localeCompare(a.data().createdAt||'')).forEach(d=>{
+      const v=d.data();
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">☁️ ${formatVacDate(v.from)}</div>
+        <div style="font-size:13px;color:var(--text-dim);">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail" style="margin-top:4px;">${v.note}</div>`:''}
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="deleteWish('${d.id}')">🗑</button>`;
+      list.appendChild(item);
+    });
+  }
+  window.deleteWish=async(id)=>{await deleteDoc(doc(db,'wishes',id));loadWishList();};
 
   // ── ADMIN: TEAM ──
   async function loadAdminUsers() {
