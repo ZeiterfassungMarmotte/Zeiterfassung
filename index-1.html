@@ -1,0 +1,2513 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Marmotte" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <link rel="icon" type="image/png" href="favicon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <title>Marmotte Zeiterfassung</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Century+Gothic&display=swap');
+    :root {
+      --bg: #1a1a1a; --surface: #252525; --surface2: #2e2e2e;
+      --border: #3a3a3a; --accent: #c8a96e;
+      --green: #5a9e6f; --red: #c0504d; --yellow: #d4a843;
+      --text: #f0ece4; --text-dim: #9a9590; --radius: 12px;
+      --font: 'Century Gothic', 'CenturyGothic', 'AppleGothic', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+    #auth-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 32px; }
+    .logo { text-align: center; }
+    .logo h1 { font-size: 28px; font-weight: 700; letter-spacing: 0.05em; color: var(--accent); }
+    .logo p { font-size: 13px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+    .auth-card h2 { font-size: 18px; font-weight: 600; }
+    label { font-size: 13px; color: var(--text-dim); display: block; margin-bottom: 5px; }
+    input[type=email], input[type=password], input[type=text], input[type=number], input[type=time], input[type=date], select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 15px; padding: 10px 12px; outline: none; transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .btn { display: block; width: 100%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-size: 15px; font-weight: 600; transition: opacity 0.15s, transform 0.1s; }
+    .btn:active { transform: scale(0.98); opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #1a1a1a; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: var(--red); color: white; }
+    .btn-sm { padding: 7px 12px; font-size: 13px; width: auto; }
+    .error-msg { color: var(--red); font-size: 13px; text-align: center; }
+    .success-msg { color: var(--green); font-size: 13px; text-align: center; }
+
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    header .title { font-size: 16px; font-weight: 700; color: var(--accent); }
+    .logout-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+    nav { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
+    nav button { flex: 1; min-width: 60px; background: none; border: none; color: var(--text-dim); padding: 12px 6px; font-size: 11px; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; font-weight: 500; white-space: nowrap; }
+    nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .page { display: none; flex: 1; padding: 20px; max-width: 700px; margin: 0 auto; width: 100%; }
+    .page.active { display: block; }
+
+    /* STEMPEL */
+    .clock-display { text-align: center; padding: 28px 0 20px; }
+    .clock-display .time { font-size: 52px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .clock-display .date { font-size: 14px; color: var(--text-dim); margin-top: 4px; }
+    .status-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .status-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 20px; margin-bottom: 16px; }
+    .status-badge.out { background: rgba(192,80,77,0.15); color: var(--red); }
+    .status-badge.in { background: rgba(90,158,111,0.15); color: var(--green); }
+    .status-badge.pause { background: rgba(212,168,67,0.15); color: var(--yellow); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .stamp-times { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .stamp-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--text-dim); }
+    .stamp-row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+    .stamp-actions { display: flex; flex-direction: column; gap: 10px; }
+
+    /* ABTEILUNGS-AUSWAHL */
+    .dept-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .dept-btn { padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+    .dept-btn.selected { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+
+    /* ABTEILUNGS-CHECKBOXEN */
+    .dept-check-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .dept-check { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+    .dept-check input[type=checkbox] { width: auto; margin: 0; accent-color: var(--accent); }
+    .dept-check.checked { border-color: var(--accent); background: rgba(200,169,110,0.1); color: var(--accent); }
+
+    /* ÜBERSICHT */
+    .month-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .month-header h2 { font-size: 18px; font-weight: 600; }
+    .month-nav { display: flex; gap: 8px; }
+    .month-nav button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 16px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .stat-card .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+    .stat-card .value { font-size: 26px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .stat-card .value.positive { color: var(--green); }
+    .stat-card .value.negative { color: var(--red); }
+    .stat-card .value.neutral { color: var(--text); }
+    .entries-list { display: flex; flex-direction: column; gap: 8px; }
+    .entry-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .entry-item .entry-date { font-size: 14px; font-weight: 500; }
+    .entry-item .entry-detail { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .entry-item .entry-hours { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .empty-state { text-align: center; padding: 48px 0; color: var(--text-dim); font-size: 14px; }
+
+    /* ADMIN */
+    .admin-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .admin-tab { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); cursor: pointer; font-size: 13px; font-weight: 500; }
+    .admin-tab.active { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+    .admin-panel { display: none; }
+    .admin-panel.active { display: block; }
+    .admin-section h3 { font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 12px; }
+    .user-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .user-item.inactive { opacity: 0.5; }
+    .user-item .user-name { font-size: 14px; font-weight: 500; }
+    .user-item .user-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .user-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .badge-inactive { display: inline-block; background: rgba(192,80,77,0.2); color: var(--red); font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+    .badge-active { display: inline-block; background: rgba(90,158,111,0.2); color: var(--green); font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+    .dept-tag { display: inline-block; background: rgba(200,169,110,0.15); color: var(--accent); font-size: 10px; padding: 2px 7px; border-radius: 10px; margin-right: 4px; margin-top: 3px; }
+
+    /* FILTER */
+    .filter-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .filter-bar .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .filter-bar label { font-size: 12px; margin-bottom: 3px; }
+
+    /* ADMIN ÜBERSICHT */
+    .team-overview-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+    .team-overview-row .row-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+    .team-overview-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .team-stat { font-size: 12px; color: var(--text-dim); }
+    .team-stat span { font-weight: 600; }
+    .team-stat span.pos { color: var(--green); }
+    .team-stat span.neg { color: var(--red); }
+
+    /* FERIEN */
+    .holiday-input { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ARBEITSPLAN */
+    .schedule-dept-section { margin-bottom:20px; }
+    .schedule-dept-title { font-size:13px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border); }
+    .schedule-day { margin-bottom:12px; }
+    .schedule-day-header { font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px; }
+    .schedule-day-date { font-size:11px;color:var(--text-dim); }
+    .shift-item { background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center; }
+    .shift-item .shift-name { font-size:13px;font-weight:500; }
+    .shift-item .shift-time { font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums; }
+    .shift-item .shift-note { font-size:11px;color:var(--text-dim); }
+    .shift-item.vacation { border-color:rgba(90,158,111,0.3);background:rgba(90,158,111,0.05); }
+    .shift-item.wish { border-color:rgba(108,158,200,0.3);background:rgba(108,158,200,0.05); }
+    .shift-add-btn { background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;color:var(--text-dim);font-size:12px;cursor:pointer;width:100%;text-align:left;margin-bottom:4px; }
+    .shift-add-btn:hover { border-color:var(--accent);color:var(--accent); }
+    .kw-badge { display:inline-block;background:rgba(200,169,110,0.15);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:10px; }
+    .year-table { width:100%; border-collapse:collapse; font-size:11px; min-width:900px; }
+    .year-table th { background:var(--surface2); color:var(--text-dim); padding:6px 8px; text-align:center; border:1px solid var(--border); font-weight:600; white-space:nowrap; }
+    .year-table th.name-col { text-align:left; min-width:120px; }
+    .year-table td { padding:5px 8px; border:1px solid var(--border); text-align:center; white-space:nowrap; }
+    .year-table td.name-col { text-align:left; font-weight:500; background:var(--surface); }
+    .year-table tr:nth-child(even) td { background:var(--surface2); }
+    .year-table tr:nth-child(even) td.name-col { background:var(--surface); }
+    .year-table .pos { color:var(--green); font-weight:600; }
+    .year-table .neg { color:var(--red); font-weight:600; }
+    .year-table .total-col { background:rgba(200,169,110,0.1); font-weight:700; }
+    .year-table .sick-col { color:var(--red); }
+    .year-table .vac-col { color:var(--green); }
+    .holiday-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    /* LIVE */
+    .live-stamp-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+    .live-stamp-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .live-stamp-detail { font-size: 12px; color: var(--text-dim); }
+    .live-stamp-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+    .live-stamp-badge.in { background: rgba(90,158,111,0.2); color: var(--green); }
+    .live-stamp-badge.pause { background: rgba(212,168,67,0.2); color: var(--yellow); }
+    .live-stamp-badge.out { background: rgba(192,80,77,0.15); color: var(--red); }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 18px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions .btn { flex: 1; }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="logo">
+    <h1>Marmotte</h1>
+    <p style="font-size:13px;color:var(--text-dim);letter-spacing:0.12em;text-transform:uppercase;">Zeiterfassung</p>
+  </div>
+  <div class="auth-card">
+    <h2>Anmelden</h2>
+    <div class="form-group"><label>E-Mail</label><input type="email" id="login-email" placeholder="name@marmotte.ch" autocomplete="email" /></div>
+    <div class="form-group"><label>Passwort</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" /></div>
+    <div id="login-error" class="error-msg"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Anmelden</button>
+    <div style="text-align:center;margin-top:4px;">
+      <a href="#" onclick="sendPasswordReset()" style="font-size:13px;color:var(--text-dim);text-decoration:none;">Passwort vergessen?</a>
+    </div>
+    <div id="reset-msg" style="font-size:13px;text-align:center;margin-top:4px;"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <span class="title">Marmotte</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:13px;color:var(--text-dim);" id="header-name"></span>
+      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+    </div>
+  </header>
+  <nav>
+    <button onclick="showPage('stamp')" id="nav-stamp" class="active">⏱ Stempeln</button>
+    <button onclick="showPage('overview')" id="nav-overview">📊 Monate</button>
+    <button onclick="showPage('vacation')" id="nav-vacation">🌴 Anträge</button>
+    <button onclick="showPage('schedule')" id="nav-schedule" style="display:none">📋 Arbeitsplan</button>
+    <button onclick="showPage('admin')" id="nav-admin" style="display:none">⚙️ Admin</button>
+  </nav>
+
+  <!-- STEMPEL -->
+  <div class="page active" id="page-stamp">
+    <div class="clock-display">
+      <div class="time" id="live-clock">00:00:00</div>
+      <div class="date" id="live-date"></div>
+    </div>
+    <div class="status-card">
+      <div class="status-badge out" id="status-badge"><span class="dot"></span> Nicht eingestempelt</div>
+      <div id="dept-selector-area"></div>
+      <div class="stamp-times" id="stamp-times"></div>
+      <div class="stamp-actions" id="stamp-actions">
+        <button class="btn btn-primary" onclick="stampIn()">✓ Kommen</button>
+      </div>
+    </div>
+    <div id="today-summary" style="display:none;">
+      <div class="status-card">
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">HEUTE GEARBEITET</div>
+        <div style="font-size:28px;font-weight:600;" id="today-worked">0h 0m</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EIGENE ÜBERSICHT -->
+  <div class="page" id="page-overview">
+    <div class="month-header">
+      <h2 id="month-label"></h2>
+      <div class="month-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card" id="stat-card-soll"><div class="label">Soll</div><div class="value neutral" id="stat-soll">—</div></div>
+      <div class="stat-card"><div class="label">Gearbeitet</div><div class="value neutral" id="stat-ist">—</div></div>
+      <div class="stat-card" id="stat-card-diff"><div class="label">Differenz</div><div class="value" id="stat-diff">—</div></div>
+      <div class="stat-card"><div class="label">Ferientage bezogen</div><div class="value neutral" id="stat-vacation">—</div></div>
+    </div>
+    <div class="entries-list" id="entries-list"><div class="empty-state">Keine Einträge</div></div>
+  </div>
+
+  <!-- FERIEN / FREIWÜNSCHE -->
+  <div class="page" id="page-vacation">
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="showVacationSubPanel('subpanel-ferien',this)">🌴 Ferien</button>
+      <button class="admin-tab" onclick="showVacationSubPanel('subpanel-freiwuensche',this)">☁️ Freiwünsche</button>
+    </div>
+
+    <div class="vacation-subpanel" id="subpanel-ferien">
+      <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">Ferienantrag einreichen</h2>
+      <div class="holiday-input">
+        <div class="form-group"><label>Von</label><input type="date" id="vacation-from" /></div>
+        <div class="form-group"><label>Bis</label><input type="date" id="vacation-to" /></div>
+        <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="vacation-note" placeholder="z.B. Sommerferien" /></div>
+        <div id="vacation-msg" class="success-msg" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary" onclick="addVacation()">Antrag einreichen</button>
+      </div>
+      <div id="vacation-list"></div>
+    </div>
+
+    <div class="vacation-subpanel" id="subpanel-freiwuensche" style="display:none;">
+      <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;">Freiwunsch eintragen</h2>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px;">Freiwünsche müssen nicht genehmigt werden – die Leitung sieht sie bei der Arbeitsplan-Planung und kann sie nach Möglichkeit berücksichtigen.</div>
+      <div class="holiday-input">
+        <div class="form-group"><label>Von</label><input type="date" id="wish-from" /></div>
+        <div class="form-group"><label>Bis</label><input type="date" id="wish-to" /></div>
+        <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="wish-note" placeholder="z.B. Geburtstag" /></div>
+        <div id="wish-msg" class="success-msg" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary" onclick="addWish()">Freiwunsch eintragen</button>
+      </div>
+      <div id="wish-list"></div>
+    </div>
+  </div>
+
+  <!-- ARBEITSPLAN -->
+  <div class="page" id="page-schedule">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:600;" id="schedule-week-label">Arbeitsplan</h2>
+      <div class="month-nav">
+        <button onclick="changeScheduleWeek(-1)">‹</button>
+        <button onclick="changeScheduleWeek(1)">›</button>
+      </div>
+    </div>
+    <div id="schedule-content"><div class="empty-state">Lade...</div></div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="showAdminPanel('panel-team',this)">👥 Team</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-overview',this)">📊 Übersicht</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-year',this)">📅 Jahr</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-live',this)">🟢 Live</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-holidays',this)">🎉 Feiertage</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-requests',this)">🌴 Anträge <span id="requests-badge" style="display:none;background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;"></span></button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-schedule-admin',this)">📋 Arbeitsplan</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-sick',this)">🤒 Krank</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
+      <button class="admin-tab" id="admin-tab-settings" onclick="showAdminPanel('panel-settings',this)" style="display:none;">🔧 Grundeinstellungen</button>
+    </div>
+
+    <!-- TEAM -->
+    <div class="admin-panel active" id="panel-team">
+      <div class="admin-section">
+        <h3>Mitarbeitende</h3>
+        <div id="admin-user-list"></div>
+      </div>
+    </div>
+
+    <!-- ÜBERSICHT MIT FILTER -->
+    <div class="admin-panel" id="panel-overview">
+      <div class="filter-bar">
+        <div class="form-row">
+          <div>
+            <label>Von</label>
+            <input type="date" id="filter-from" />
+          </div>
+          <div>
+            <label>Bis</label>
+            <input type="date" id="filter-to" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>Abteilung</label>
+            <select id="filter-dept">
+              <option value="">Alle</option>
+              <option>Bäckerei</option>
+              <option>Laden & Tearoom</option>
+              <option>Dorfladen</option>
+            </select>
+          </div>
+          <div>
+            <label>Mitarbeiter</label>
+            <select id="filter-emp"><option value="">Alle</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadAdminOverview()" style="margin-top:4px;">Filtern</button>
+      </div>
+      <div id="team-overview-list"><div class="empty-state">Filter anwenden</div></div>
+    </div>
+
+    <!-- JAHRESÜBERBLICK -->
+    <div class="admin-panel" id="panel-year">
+      <div class="filter-bar">
+        <div class="form-row">
+          <div>
+            <label>Jahr</label>
+            <select id="year-filter-year" style="width:100%;"></select>
+          </div>
+          <div>
+            <label>Abteilung</label>
+            <select id="year-filter-dept">
+              <option value="">Alle</option>
+              <option>Bäckerei</option>
+              <option>Laden & Tearoom</option>
+              <option>Dorfladen</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadYearOverview()">Anzeigen</button>
+      </div>
+      <div id="year-overview-content" style="overflow-x:auto;">
+        <div class="empty-state">Jahr auswählen und Anzeigen klicken</div>
+      </div>
+    </div>
+
+    <!-- LIVE -->
+    <div class="admin-panel" id="panel-live">
+      <div class="admin-section">
+        <h3>Heutige Stempelungen</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <select id="live-filter-dept" onchange="loadLiveStamps()" style="width:auto;">
+            <option value="">Alle Abteilungen</option>
+            <option>Bäckerei</option><option>Laden & Tearoom</option><option>Dorfladen</option>
+          </select>
+        </div>
+        <div id="live-stamp-list"><div class="empty-state">Lade...</div></div>
+      </div>
+    </div>
+
+    <!-- FEIERTAGE -->
+    <div class="admin-panel" id="panel-holidays">
+      <div class="admin-section">
+        <h3>Feiertage Kanton Bern</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Automatisch berechnet – kein manueller Aufwand.</div>
+        <select id="holiday-year" onchange="renderHolidays()" style="width:auto;margin-bottom:16px;"></select>
+        <div id="holiday-list"></div>
+      </div>
+    </div>
+
+    <!-- ADMIN ARBEITSPLAN -->
+    <div class="admin-panel" id="panel-schedule-admin">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:600;" id="admin-schedule-week-label">Arbeitsplan</h2>
+        <div class="month-nav">
+          <button onclick="changeAdminScheduleWeek(-1)">‹</button>
+          <button onclick="changeAdminScheduleWeek(1)">›</button>
+        </div>
+      </div>
+      <div class="filter-bar" style="margin-bottom:12px;">
+        <label style="font-size:12px;margin-bottom:4px;">Abteilung</label>
+        <select id="admin-schedule-dept" onchange="loadAdminSchedule()">
+          <option value="">Alle</option>
+          <option>Bäckerei</option>
+          <option>Laden & Tearoom</option>
+          <option>Dorfladen</option>
+        </select>
+      </div>
+      <div id="admin-schedule-content"><div class="empty-state">Lade...</div></div>
+    </div>
+
+    <!-- FERIENANTRÄGE -->
+    <div class="admin-panel" id="panel-requests">
+      <div class="admin-section">
+        <h3>Ferienanträge</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('pending')" id="req-filter-pending" style="border-color:var(--accent);color:var(--accent);">⏳ Ausstehend</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('approved')" id="req-filter-approved">✓ Genehmigt</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadVacationRequests('rejected')" id="req-filter-rejected">✕ Abgelehnt</button>
+        </div>
+        <div id="vacation-requests-list"><div class="empty-state">Lade...</div></div>
+      </div>
+    </div>
+
+    <!-- KRANKMELDUNGEN -->
+    <div class="admin-panel" id="panel-sick">
+      <div class="admin-section">
+        <h3>Krankmeldung eintragen</h3>
+        <div class="status-card">
+          <div class="form-group">
+            <label>Mitarbeitende/r</label>
+            <select id="sick-uid" style="width:100%;"></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Von</label><input type="date" id="sick-from" /></div>
+            <div class="form-group"><label>Bis</label><input type="date" id="sick-to" /></div>
+          </div>
+          <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="sick-note" placeholder="z.B. Arztzeugnis erhalten" /></div>
+          <div id="sick-msg" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="addSickEntry()">Krankmeldung eintragen</button>
+        </div>
+        <div style="margin-top:20px;">
+          <h3>Bestehende Krankmeldungen</h3>
+          <div class="form-group" style="margin-bottom:12px;">
+            <select id="sick-filter-uid" onchange="loadSickList()" style="width:100%;">
+              <option value="">Alle Mitarbeitenden</option>
+            </select>
+          </div>
+          <div id="sick-list"><div class="empty-state">Lade...</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEU -->
+    <div class="admin-panel" id="panel-new">
+      <div class="admin-section">
+        <h3>Neuen Mitarbeitenden hinzufügen</h3>
+        <div class="status-card">
+          <div class="form-group"><label>Name</label><input type="text" id="new-name" placeholder="Max Mustermann" /></div>
+          <div class="form-group"><label>Personalnummer</label><input type="text" id="new-personnel" placeholder="001" /></div>
+          <div class="form-group"><label>E-Mail</label><input type="email" id="new-email" placeholder="max@marmotte.ch" /></div>
+          <div class="form-group"><label>Passwort (temporär)</label><input type="text" id="new-pass" placeholder="Marmotte2025!" /></div>
+          <div class="form-group">
+            <label>Anstellungsart</label>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+              <label class="dept-check checked" id="new-type-fest-label"><input type="radio" name="new-emp-type" value="festangestellt" checked onchange="toggleNewEmpType()"> Festangestellt</label>
+              <label class="dept-check" id="new-type-stunden-label"><input type="radio" name="new-emp-type" value="stundenlöhner" onchange="toggleNewEmpType()"> Stundenlöhner</label>
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:14px;">
+            <div class="form-group" style="margin-bottom:0;"><label>Stellenprozent (%)</label><input type="number" id="new-percent" placeholder="100" min="10" max="100" onchange="calcNewHours()" /></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Arbeitstage / Woche</label><input type="number" id="new-workdays" placeholder="5" min="1" max="6" onchange="calcNewHours()" /></div>
+          </div>
+          <div class="form-row" style="margin-bottom:14px;">
+            <div class="form-group" style="margin-bottom:0;" id="new-hours-group"><label>Wochenstunden (auto)</label><input type="number" id="new-hours" placeholder="—" step="0.1" readonly style="opacity:0.7;" /></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr (auto)</label><input type="number" id="new-vacation-days" placeholder="—" step="0.1" readonly style="opacity:0.7;" /></div>
+          </div>
+          <div class="form-group"><label>Anstellungsdatum</label><input type="date" id="new-startdate" /></div>
+          <div class="form-group">
+            <label>Abteilungen</label>
+            <div class="dept-check-group" id="new-dept-group">
+              <label class="dept-check"><input type="checkbox" value="Bäckerei" onchange="toggleDeptCheck(this)"> Bäckerei</label>
+              <label class="dept-check"><input type="checkbox" value="Laden & Tearoom" onchange="toggleDeptCheck(this)"> Laden & Tearoom</label>
+              <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
+            </div>
+          </div>
+          <div class="form-group" id="new-role-group" style="display:none;">
+            <label>Rolle</label>
+            <select id="new-role" style="width:100%;">
+              <option value="employee" selected>Mitarbeiter</option>
+              <option value="leitung">Leitung</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+            <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
+            <input type="checkbox" id="new-can-vacation" checked style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
+          </div>
+          <div id="admin-error" class="error-msg" style="margin-bottom:8px;"></div>
+          <div id="admin-success" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="createUser()">Mitarbeitenden erstellen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRUNDEINSTELLUNGEN (nur Admin) -->
+    <div class="admin-panel" id="panel-settings">
+      <div class="admin-section">
+        <h3>Grundeinstellungen</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Gelten für ein 100%-Pensum. Wochenstunden und Ferientage werden bei der Mitarbeitenden-Erstellung automatisch anhand des Pensums daraus berechnet.</div>
+        <div class="status-card">
+          <div class="form-group"><label>Wochenarbeitszeit bei 100% (Std.)</label><input type="number" id="settings-fulltime-hours" placeholder="42.5" step="0.5" /></div>
+          <div class="form-group"><label>Ferientage bei 100% (Tage/Jahr)</label><input type="number" id="settings-vacation-days" placeholder="25" step="0.5" /></div>
+          <div id="settings-msg" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="saveGlobalSettings()">Speichern</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Schicht erstellen/bearbeiten -->
+<div class="modal-overlay" id="shift-modal">
+  <div class="modal">
+    <h3 id="shift-modal-title">Schicht eintragen</h3>
+    <input type="hidden" id="shift-id" />
+    <input type="hidden" id="shift-date" />
+    <div class="form-group"><label>Mitarbeitende/r</label><select id="shift-uid" style="width:100%;"></select></div>
+    <div class="form-group"><label>Abteilung</label>
+      <select id="shift-dept" style="width:100%;">
+        <option>Bäckerei</option>
+        <option>Laden & Tearoom</option>
+        <option>Dorfladen</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Von</label><input type="time" id="shift-from" /></div>
+      <div class="form-group"><label>Bis</label><input type="time" id="shift-to" /></div>
+    </div>
+    <div class="form-group"><label>Bemerkung (optional)</label><input type="text" id="shift-note" placeholder="z.B. Vertretung" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('shift-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveShift()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Krankmeldung bearbeiten -->
+<div class="modal-overlay" id="sick-edit-modal">
+  <div class="modal">
+    <h3>Krankmeldung bearbeiten</h3>
+    <input type="hidden" id="sick-edit-id" />
+    <div class="form-group"><label>Von</label><input type="date" id="sick-edit-from" /></div>
+    <div class="form-group"><label>Bis</label><input type="date" id="sick-edit-to" /></div>
+    <div class="form-group"><label>Bemerkung</label><input type="text" id="sick-edit-note" placeholder="z.B. Arztzeugnis erhalten" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('sick-edit-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveSickEdit()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Ferienantrag ablehnen -->
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal">
+    <h3>Antrag ablehnen</h3>
+    <input type="hidden" id="reject-vac-id" />
+    <div class="form-group"><label>Begründung (optional)</label><input type="text" id="reject-reason" placeholder="z.B. Betrieblich nicht möglich" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('reject-modal')">Abbrechen</button>
+      <button class="btn btn-danger" onclick="confirmReject()">Ablehnen</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>Eintrag bearbeiten</h3>
+    <input type="hidden" id="edit-entry-id" /><input type="hidden" id="edit-entry-uid" />
+    <div class="form-group"><label>Kommen</label><input type="time" id="edit-start" /></div>
+    <div class="form-group"><label>Pause von</label><input type="time" id="edit-pause-start" /></div>
+    <div class="form-group"><label>Pause bis</label><input type="time" id="edit-pause-end" /></div>
+    <div class="form-group"><label>Gehen</label><input type="time" id="edit-end" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('edit-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Mitarbeitenden bearbeiten -->
+<div class="modal-overlay" id="user-edit-modal">
+  <div class="modal">
+    <h3>Mitarbeitenden bearbeiten</h3>
+    <input type="hidden" id="ue-uid" />
+    <div class="form-group"><label>Name</label><input type="text" id="ue-name" /></div>
+    <div class="form-group"><label>Personalnummer</label><input type="text" id="ue-personnel" /></div>
+    <div class="form-group">
+      <label>Anstellungsart</label>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <label class="dept-check" id="ue-type-fest-label"><input type="radio" name="ue-emp-type" value="festangestellt" onchange="toggleUeEmpType()"> Festangestellt</label>
+        <label class="dept-check" id="ue-type-stunden-label"><input type="radio" name="ue-emp-type" value="stundenlöhner" onchange="toggleUeEmpType()"> Stundenlöhner</label>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:0;"><label>Stellenprozent (%)</label><input type="number" id="ue-percent" min="10" max="100" onchange="calcUeHours()" /></div>
+      <div class="form-group" style="margin-bottom:0;"><label>Arbeitstage / Woche</label><input type="number" id="ue-workdays" min="1" max="6" onchange="calcUeHours()" /></div>
+    </div>
+    <div class="form-row" style="margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:0;" id="ue-hours-group"><label>Wochenstunden (auto)</label><input type="number" id="ue-hours" step="0.1" readonly style="opacity:0.7;" /></div>
+      <div class="form-group" style="margin-bottom:0;"><label>Ferientage / Jahr (auto)</label><input type="number" id="ue-vacation" step="0.1" readonly style="opacity:0.7;" /></div>
+    </div>
+    <div class="form-row" style="margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:0;"><label>Anstellungsdatum</label><input type="date" id="ue-startdate" /></div>
+      <div class="form-group" style="margin-bottom:0;"><label>Austrittsdatum</label><input type="date" id="ue-enddate" /></div>
+    </div>
+    <div class="form-group">
+      <label>Abteilungen</label>
+      <div class="dept-check-group" id="ue-dept-group">
+        <label class="dept-check"><input type="checkbox" value="Bäckerei" onchange="toggleDeptCheck(this)"> Bäckerei</label>
+        <label class="dept-check"><input type="checkbox" value="Laden & Tearoom" onchange="toggleDeptCheck(this)"> Laden & Tearoom</label>
+        <label class="dept-check"><input type="checkbox" value="Dorfladen" onchange="toggleDeptCheck(this)"> Dorfladen</label>
+      </div>
+    </div>
+    <div class="form-group" id="ue-role-group" style="display:none;">
+      <label>Rolle</label>
+      <select id="ue-role" style="width:100%;">
+        <option value="employee">Mitarbeiter</option>
+        <option value="leitung">Leitung</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
+      <input type="checkbox" id="ue-can-vacation" style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('user-edit-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveUserEdit()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Admin bearbeitet/erstellt Eintrag -->
+<div class="modal-overlay" id="admin-entry-modal">
+  <div class="modal">
+    <h3 id="aem-title">Eintrag bearbeiten</h3>
+    <input type="hidden" id="aem-uid" />
+    <div class="form-group" id="aem-date-group" style="display:none;">
+      <label>Datum</label><input type="date" id="aem-date-input" />
+    </div>
+    <input type="hidden" id="aem-date" />
+    <div class="form-group"><label>Kommen</label><input type="time" id="aem-start" /></div>
+    <div class="form-group"><label>Pause von</label><input type="time" id="aem-pause-start" /></div>
+    <div class="form-group"><label>Pause bis</label><input type="time" id="aem-pause-end" /></div>
+    <div class="form-group"><label>Gehen</label><input type="time" id="aem-end" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('admin-entry-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveAdminEntry()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Mitarbeiter Monatsdetail -->
+<div class="modal-overlay" id="emp-detail-modal">
+  <div class="modal">
+    <h3 id="emp-detail-title">Monatsdetail</h3>
+    <div id="emp-detail-content"></div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal('emp-detail-modal')">Schliessen</button></div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAoMkNMiVUWOsuPN_iZQXjG0beIfGSJKjA",
+    authDomain: "zeiterfassung-marmotte-36b6b.firebaseapp.com",
+    projectId: "zeiterfassung-marmotte-36b6b",
+    storageBucket: "zeiterfassung-marmotte-36b6b.firebasestorage.app",
+    messagingSenderId: "296588907627",
+    appId: "1:296588907627:web:2e42ab2ae6b00bf3f9cd2e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null, currentProfile = null, allUsers = [];
+  let globalSettings = { fulltimeHours: null, vacationDaysPerYear: null };
+  function isAdmin() { return currentProfile?.role === 'admin'; }
+  function isLeitung() { return currentProfile?.role === 'leitung'; }
+  function isAdminOrLeitung() { return isAdmin() || isLeitung(); }
+  let overviewMonth = new Date().getMonth(), overviewYear = new Date().getFullYear();
+  let selectedDept = null; // beim Stempeln
+
+  const DEPTS = ['Bäckerei','Laden','Tearoom','Dorfladen'];
+
+  // ── FEIERTAGE BERN ──
+  function getEaster(y) {
+    const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+    return new Date(y,Math.floor((h+l-7*m+114)/31)-1,((h+l-7*m+114)%31)+1);
+  }
+  function getBernHolidays(y) {
+    const e=getEaster(y), add=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+    const f=d=>`${y}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return [
+      {name:'Neujahr',date:f(new Date(y,0,1))},{name:'Berchtoldstag',date:f(new Date(y,0,2))},
+      {name:'Karfreitag',date:f(add(e,-2))},{name:'Ostermontag',date:f(add(e,1))},
+      {name:'Auffahrt',date:f(add(e,39))},{name:'Pfingstmontag',date:f(add(e,50))},
+      {name:'Bundesfeiertag',date:f(new Date(y,7,1))},
+      {name:'Erster Weihnachtstag',date:f(new Date(y,11,25))},{name:'Stephanstag',date:f(new Date(y,11,26))},
+    ];
+  }
+
+  // ── HELPERS ──
+  function todayKey() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function minutesToHM(m) { if(m==null)return'—'; const s=m<0?'-':'',a=Math.abs(m); return `${s}${Math.floor(a/60)}h ${a%60}m`; }
+  function timeToMin(t) { if(!t)return null; const[h,m]=t.split(':').map(Number); return h*60+m; }
+  function minToStr(m) { if(m==null||m===undefined)return''; return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
+  function calcWorked(e) { if(!e.startMin||!e.endMin)return 0; let w=e.endMin-e.startMin; if(e.pauseStartMin&&e.pauseEndMin)w-=(e.pauseEndMin-e.pauseStartMin); return Math.max(0,w); }
+  function getSoll(year, month, profile) {
+    const p = profile || currentProfile;
+    const weeklyHours = Number(p?.weeklyHours) || 0;
+    const workdaysPerWeek = Number(p?.workdaysPerWeek) || 5;
+    const dailyMin = (weeklyHours / workdaysPerWeek) * 60;
+    const holidays = getBernHolidays(year).map(h => h.date);
+    let workDays = 0;
+    const d = new Date(year, month, 1);
+    while (d.getMonth() === month) {
+      const key = `${year}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (isWorkday(d, workdaysPerWeek) && !holidays.includes(key)) workDays++;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.round(workDays * dailyMin);
+  }
+
+  async function loadGlobalSettings() {
+    try {
+      const snap = await getDoc(doc(db,'settings','global'));
+      if (snap.exists()) {
+        globalSettings = snap.data();
+        const fh = document.getElementById('settings-fulltime-hours');
+        const vd = document.getElementById('settings-vacation-days');
+        if (fh) fh.value = globalSettings.fulltimeHours ?? '';
+        if (vd) vd.value = globalSettings.vacationDaysPerYear ?? '';
+      }
+    } catch (e) { console.error('Grundeinstellungen konnten nicht geladen werden:', e); }
+  }
+  window.saveGlobalSettings = async () => {
+    const fulltimeHours = Number(document.getElementById('settings-fulltime-hours').value);
+    const vacationDaysPerYear = Number(document.getElementById('settings-vacation-days').value);
+    const msg = document.getElementById('settings-msg');
+    if (!fulltimeHours || !vacationDaysPerYear) { msg.style.color='var(--red)'; msg.textContent='Bitte beide Felder ausfüllen.'; return; }
+    await setDoc(doc(db,'settings','global'), {fulltimeHours, vacationDaysPerYear});
+    globalSettings = {fulltimeHours, vacationDaysPerYear};
+    msg.style.color='var(--green)'; msg.textContent='✓ Gespeichert!';
+    setTimeout(()=>msg.textContent='',3000);
+  };
+  // Arbeitstage/Woche -> welche Wochentage (immer ab Montag) zählen als Arbeitstag
+  function isWorkday(date, workdaysPerWeek) {
+    const wpw = workdaysPerWeek || 5;
+    const dow = date.getDay(); // 0=So..6=Sa
+    const idx = dow === 0 ? 7 : dow; // Mo=1..So=7
+    return idx <= wpw;
+  }
+
+
+  function updateClock(){const n=new Date();document.getElementById('live-clock').textContent=n.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('live-date').textContent=n.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+  setInterval(updateClock,1000);updateClock();
+
+  // ── AUTH ──
+  onAuthStateChanged(auth, async user => {
+    if (user) {
+      currentUser = user;
+      const snap = await getDoc(doc(db,'users',user.uid));
+      currentProfile = snap.exists() ? snap.data() : {name:user.email,role:'employee',weeklyHours:42,workdaysPerWeek:5,vacationDaysPerYear:20,departments:[]};
+      document.getElementById('header-name').textContent = currentProfile.name || user.email;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      // Show schedule tab for all users
+      document.getElementById('nav-schedule').style.display = 'block';
+      // Show/hide vacation tab based on profile
+      document.getElementById('nav-vacation').style.display =
+        (currentProfile.canUseVacation !== false) ? 'block' : 'none';
+      if (isAdmin() || isLeitung()) {
+        const navBtn = document.getElementById('nav-admin');
+        navBtn.style.display = 'block';
+        navBtn.textContent = isAdmin() ? '⚙️ Admin' : '🧑\u200d💼 Leitung';
+        document.getElementById('nav-vacation').style.display = 'block';
+        document.getElementById('admin-tab-settings').style.display = isAdmin() ? '' : 'none';
+        document.getElementById('new-role-group').style.display = isAdmin() ? 'block' : 'none';
+        if (isAdmin()) await loadGlobalSettings();
+        loadAdminUsers().then(()=>populateSickSelects()); initHolidayYearSelect(); renderHolidays(); initAdminFilters();
+        setTimeout(loadPendingBadge, 1000);
+      }
+      loadTodayStamp(); loadOverview(); loadVacationList();
+      setTimeout(checkScheduleNotification, 1500);
+    } else {
+      currentUser=null;currentProfile=null;
+      document.getElementById('auth-screen').style.display='flex';
+      document.getElementById('app').style.display='none';
+    }
+  });
+
+  window.sendPasswordReset = async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const msg = document.getElementById('reset-msg');
+    if (!email) { msg.style.color='var(--red)'; msg.textContent='Bitte zuerst E-Mail eingeben.'; return; }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      msg.style.color='var(--green)'; msg.textContent='✓ E-Mail wurde verschickt!';
+    } catch {
+      msg.style.color='var(--red)'; msg.textContent='E-Mail nicht gefunden.';
+    }
+  };
+
+  window.doLogin = async () => {
+    const email=document.getElementById('login-email').value.trim(), pass=document.getElementById('login-pass').value;
+    document.getElementById('login-error').textContent='';
+    try{await signInWithEmailAndPassword(auth,email,pass);}catch{document.getElementById('login-error').textContent='Falsche E-Mail oder Passwort.';}
+  };
+  window.doLogout = () => signOut(auth);
+
+  // ── NAV ──
+  window.showPage = (page) => {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('page-'+page).classList.add('active');
+    document.getElementById('nav-'+page).classList.add('active');
+    if(page==='overview')loadOverview();
+    if(page==='vacation'){loadVacationList();loadWishList();}
+    if(page==='schedule')loadSchedule();
+    if(page==='admin'){loadAdminUsers();loadLiveStamps();}
+  };
+
+  // KW Notification on login
+  async function checkScheduleNotification() {
+    const days = getWeekDates(0);
+    const fromKey = dateKey(days[0]), toKey = dateKey(days[6]);
+    const kw = getKW(days[0]);
+    const snap = await getDocs(query(collection(db,'shifts'),where('date','>=',fromKey),where('date','<=',toKey)));
+    if(snap.size > 0) {
+      const notif = document.createElement('div');
+      notif.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:10px 18px;font-size:13px;color:var(--accent);z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.4);';
+      notif.textContent = `📋 Arbeitsplan KW ${kw} online`;
+      document.body.appendChild(notif);
+      setTimeout(()=>notif.remove(), 4000);
+    }
+  }
+  window.showVacationSubPanel = (id, btn) => {
+    document.querySelectorAll('.vacation-subpanel').forEach(p=>p.style.display='none');
+    btn.parentElement.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(id).style.display='block'; btn.classList.add('active');
+  };
+  window.showAdminPanel = (id, btn) => {
+    if (id === 'panel-settings' && !isAdmin()) return; // nur Admin
+    document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.admin-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(id).classList.add('active'); btn.classList.add('active');
+    if(id==='panel-live')loadLiveStamps();
+    if(id==='panel-holidays')renderHolidays();
+    if(id==='panel-requests')loadVacationRequests('pending');
+    if(id==='panel-schedule-admin'){populateShiftUsers();loadAdminSchedule();}
+    if(id==='panel-sick'){populateSickSelects();loadSickList();}
+    if(id==='panel-year')initYearFilter();
+  };
+
+  function initYearFilter() {
+    const sel = document.getElementById('year-filter-year');
+    if(sel.options.length > 0) return;
+    const y = new Date().getFullYear();
+    for(let i=y-2;i<=y+1;i++){
+      const o=document.createElement('option');
+      o.value=i; o.textContent=i;
+      if(i===y)o.selected=true;
+      sel.appendChild(o);
+    }
+  }
+
+  window.loadYearOverview = async () => {
+    const year = Number(document.getElementById('year-filter-year').value);
+    const deptFilter = document.getElementById('year-filter-dept').value;
+    const content = document.getElementById('year-overview-content');
+    content.innerHTML = '<div class="empty-state">Lade...</div>';
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+    let users = allUsers.filter(u=>u.active!==false);
+    if(deptFilter) users = users.filter(u=>(u.departments||[]).includes(deptFilter));
+    users = users.sort((a,b)=>(a.personnelNumber||'').localeCompare(b.personnelNumber||''));
+
+    const MN=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+    // Load all data for the year
+    const yearFrom = `${year}-01-01`, yearTo = `${year}-12-31`;
+    const entriesSnap = await getDocs(query(collection(db,'timeEntries'),where('date','>=',yearFrom),where('date','<=',yearTo)));
+    const allEntries = entriesSnap.docs.map(d=>d.data());
+    const vacSnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
+    const allVac = vacSnap.docs.map(d=>d.data());
+    const sickSnap = await getDocs(collection(db,'sickDays'));
+    const allSick = sickSnap.docs.map(d=>d.data());
+
+    // Build table
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:600;">Jahresüberblick ${year}</div>
+      <button class="btn btn-primary btn-sm" onclick="generateYearPDF(${year})">📄 PDF</button>
+    </div>
+    <table class="year-table" id="year-table-data">
+      <thead><tr>
+        <th class="name-col">Mitarbeitende/r</th>
+        ${MN.map(m=>`<th>${m}</th>`).join('')}
+        <th class="total-col">Jahressoll</th>
+        <th class="total-col">Jahresist</th>
+        <th class="total-col">Gleitzeit</th>
+        <th class="sick-col">🤒 Krank</th>
+        <th class="vac-col">🌴 Ferien</th>
+        <th class="vac-col">Saldo</th>
+      </tr></thead><tbody>`;
+
+    for(const u of users) {
+      const isStunden = u.employmentType === 'stundenlöhner';
+      const wpw = Number(u.workdaysPerWeek)||5;
+      const dm = ((Number(u.weeklyHours)||0)/wpw)*60;
+      const startDate = u.startDate || null;
+
+      let cumDiff = 0;
+      let totalSickAll = 0;
+      let totalVacDays = 0;
+      let yearSoll = 0;
+      let yearIst = 0;
+      const monthCells = [];
+
+      for(let m=0;m<12;m++){
+        const mStr = String(m+1).padStart(2,'0');
+        const mFrom = `${year}-${mStr}-01`;
+        const mTo = `${year}-${mStr}-${String(new Date(year,m+1,0).getDate()).padStart(2,'0')}`;
+
+        // Skip months before startDate
+        if(startDate && startDate > mTo){ monthCells.push('<td style="color:var(--text-dim);">—</td>'); continue; }
+
+        const holidays = getBernHolidays(year).map(h=>h.date);
+        const entries = allEntries.filter(e=>e.uid===u.id&&e.date>=mFrom&&e.date<=mTo);
+        let worked=0; entries.forEach(e=>worked+=calcWorked(e));
+
+        // Vac days (nur tatsächliche Arbeitstage der Person)
+        let vacDays=0;
+        allVac.filter(v=>v.uid===u.id).forEach(v=>{
+          const f=v.from,t=v.to;
+          const d=new Date(year,m,1);
+          while(d.getMonth()===m){
+            const key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t&&isWorkday(d,wpw)&&!holidays.includes(key))vacDays++;
+            d.setDate(d.getDate()+1);
+          }
+        });
+        totalVacDays += vacDays;
+
+        // Sick days
+        let sickWork=0, sickAll=0;
+        allSick.filter(v=>v.uid===u.id).forEach(v=>{
+          const f=v.from,t=v.to;
+          const d=new Date(year,m,1);
+          while(d.getMonth()===m){
+            const key=`${year}-${mStr}-${String(d.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t){sickAll++;if(isWorkday(d,wpw)&&!holidays.includes(key))sickWork++;}
+            d.setDate(d.getDate()+1);
+          }
+        });
+        totalSickAll += sickAll;
+
+        if(isStunden){
+          yearIst += worked;
+          monthCells.push(`<td>${minutesToHM(worked)}</td>`);
+        } else {
+          const effectiveFrom = startDate && startDate > mFrom ? startDate : mFrom;
+          let sollDays=0;
+          const dc=new Date(effectiveFrom);
+          const end=new Date(mTo);
+          while(dc<=end){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(isWorkday(dc,wpw)&&!holidays.includes(key))sollDays++;dc.setDate(dc.getDate()+1);}
+          const soll=Math.round(sollDays*dm);
+          const nettoSoll=soll-vacDays*dm-sickWork*dm;
+          const diff=worked-nettoSoll;
+          cumDiff+=diff;
+          yearSoll+=nettoSoll;
+          yearIst+=worked;
+          const cls=diff>=0?'pos':'neg';
+          monthCells.push(`<td class="${cls}">${diff>=0?'+':''}${minutesToHM(diff)}</td>`);
+        }
+      }
+
+      const cumCls = cumDiff>=0?'pos':'neg';
+      const remainVac = (u.vacationDaysPerYear||0) - totalVacDays;
+
+      html += `<tr>
+        <td class="name-col">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}${isStunden?' <span class="dept-tag" style="background:rgba(212,168,67,0.2);color:var(--yellow);">SL</span>':''}</td>
+        ${monthCells.join('')}
+        ${isStunden
+          ? `<td class="total-col">—</td><td class="total-col">${minutesToHM(yearIst)}</td><td class="total-col">—</td>`
+          : `<td class="total-col">${minutesToHM(yearSoll)}</td><td class="total-col">${minutesToHM(yearIst)}</td><td class="total-col ${cumCls}">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</td>`}
+        <td class="sick-col">${totalSickAll>0?totalSickAll+'T':'—'}</td>
+        <td class="vac-col">${totalVacDays}T</td>
+        <td class="${remainVac<0?'neg':'vac-col'}">${remainVac}T</td>
+      </tr>`;
+    }
+
+    html += '</tbody></table>';
+    content.innerHTML = html;
+  };
+
+  // ── KRANKMELDUNGEN ──
+  function populateSickSelects() {
+    const opts = '<option value="">Alle Mitarbeitenden</option>' +
+      allUsers.filter(u=>u.active!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
+      .map(u=>`<option value="${u.id}">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}</option>`).join('');
+    const sel1 = document.getElementById('sick-uid');
+    const sel2 = document.getElementById('sick-filter-uid');
+    if(sel1) sel1.innerHTML = opts.replace('<option value="">Alle Mitarbeitenden</option>','<option value="">— Bitte wählen —</option>');
+    if(sel2) sel2.innerHTML = opts;
+  }
+
+  window.addSickEntry = async () => {
+    const uid = document.getElementById('sick-uid').value;
+    const from = document.getElementById('sick-from').value;
+    const to = document.getElementById('sick-to').value;
+    const note = document.getElementById('sick-note').value;
+    const msg = document.getElementById('sick-msg');
+    if(!uid||!from||!to){msg.style.color='var(--red)';msg.textContent='Bitte alle Pflichtfelder ausfüllen.';return;}
+    await setDoc(doc(db,'sickDays',`${uid}_sick_${Date.now()}`),{uid,from,to,note,createdAt:new Date().toISOString()});
+    document.getElementById('sick-from').value='';
+    document.getElementById('sick-to').value='';
+    document.getElementById('sick-note').value='';
+    document.getElementById('sick-uid').value='';
+    msg.style.color='var(--green)'; msg.textContent='✓ Krankmeldung eingetragen!';
+    setTimeout(()=>msg.textContent='',3000);
+    loadSickList();
+  };
+
+  window.generateYearPDF = (year) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W=297, H=210, margin=10;
+    const dark=[26,26,26], accent=[200,169,110], dim=[140,135,130], green=[90,158,111], red=[192,80,77];
+    const MN=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+    // Title
+    doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Marmotte – Jahresüberblick', margin, margin+6);
+    doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...accent);
+    doc.text(`${year}`, margin+80, margin+6);
+    doc.setFontSize(8); doc.setTextColor(...dim);
+    doc.text(`Erstellt am ${new Date().toLocaleDateString('de-CH')}`, W-margin, margin+6, {align:'right'});
+
+    let y = margin + 14;
+
+    // Table from DOM
+    const table = document.getElementById('year-table-data');
+    if(!table){ doc.save(`Marmotte_Jahresueberblick_${year}.pdf`); return; }
+
+    const rows = table.querySelectorAll('tr');
+    const colWidths = [32, ...Array(12).fill(14), 16, 16, 16, 10, 10, 10];
+    const totalW = colWidths.reduce((a,b)=>a+b,0);
+    const startX = (W - totalW) / 2;
+
+    rows.forEach((row, ri) => {
+      const cells = row.querySelectorAll('th, td');
+      if(y + 7 > H - 12){ doc.addPage(); y = margin + 5; }
+      let x = startX;
+      const isHeader = row.parentElement.tagName === 'THEAD';
+      if(isHeader){ doc.setFillColor(...dark); doc.rect(startX, y-4, totalW, 7, 'F'); }
+      else if(ri%2===0){ doc.setFillColor(248,246,243); doc.rect(startX, y-4, totalW, 7, 'F'); }
+
+      cells.forEach((cell, ci) => {
+        const w = colWidths[ci]||14;
+        const text = cell.textContent.trim();
+        const isRight = ci > 0;
+        doc.setFontSize(isHeader?7:7);
+        doc.setFont('helvetica', isHeader||cell.classList.contains('total-col')||cell.tagName==='TH'?'bold':'normal');
+        if(isHeader){ doc.setTextColor(255,255,255); }
+        else if(text.startsWith('+')){ doc.setTextColor(...green); }
+        else if(text.startsWith('-')){ doc.setTextColor(...red); }
+        else if(cell.classList.contains('sick-col')&&text!=='—'){ doc.setTextColor(...red); }
+        else if(cell.classList.contains('vac-col')){ doc.setTextColor(...green); }
+        else { doc.setTextColor(...dark); }
+        doc.text(text, isRight ? x+w-1 : x+1, y, {align: isRight?'right':'left', maxWidth:w-2});
+        x += w;
+      });
+      y += 7;
+    });
+
+    // Footer
+    const total = doc.getNumberOfPages();
+    for(let p=1;p<=total;p++){
+      doc.setPage(p);
+      doc.setFontSize(7); doc.setTextColor(...dim);
+      doc.text(`Seite ${p} von ${total}`, W/2, H-5, {align:'center'});
+    }
+    doc.save(`Marmotte_Jahresueberblick_${year}.pdf`);
+  };
+
+  window.loadSickList = async () => {
+    const filterUid = document.getElementById('sick-filter-uid')?.value||'';
+    const list = document.getElementById('sick-list');
+    list.innerHTML='<div class="empty-state">Lade...</div>';
+    let snap;
+    if(filterUid){
+      snap = await getDocs(query(collection(db,'sickDays'),where('uid','==',filterUid)));
+    } else {
+      snap = await getDocs(collection(db,'sickDays'));
+    }
+    const entries = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.from.localeCompare(a.from));
+    if(!entries.length){list.innerHTML='<div class="empty-state">Keine Krankmeldungen</div>';return;}
+    list.innerHTML='';
+    entries.forEach(v=>{
+      const u=allUsers.find(x=>x.id===v.uid);
+      // Count sick days (all days incl Sa/So)
+      const f=v.from.split('-'), t=v.to.split('-');
+      const fd=new Date(Number(f[0]),Number(f[1])-1,Number(f[2]));
+      const td=new Date(Number(t[0]),Number(t[1])-1,Number(t[2]));
+      let days=0; const dd=new Date(fd); while(dd<=td){days++;dd.setDate(dd.getDate()+1);}
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">🤒 ${u?.name||'Unbekannt'}</div>
+        <div style="font-size:13px;color:var(--text-dim);">${formatVacDate(v.from)} – ${formatVacDate(v.to)}</div>
+        <div style="font-size:12px;color:var(--red);margin-top:2px;">${days} Krankheitstage</div>
+        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="openSickEdit('${v.id}','${v.from}','${v.to}','${v.note||''}')">✎</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSickEntry('${v.id}')">🗑</button>
+      </div>`;
+      list.appendChild(item);
+    });
+  };
+
+  window.deleteSickEntry = async (id) => {
+    if(!confirm('Krankmeldung wirklich löschen?'))return;
+    await deleteDoc(doc(db,'sickDays',id));
+    loadSickList();
+  };
+
+  window.openSickEdit = (id, from, to, note) => {
+    document.getElementById('sick-edit-id').value = id;
+    document.getElementById('sick-edit-from').value = from;
+    document.getElementById('sick-edit-to').value = to;
+    document.getElementById('sick-edit-note').value = note;
+    document.getElementById('sick-edit-modal').classList.add('open');
+  };
+
+  window.saveSickEdit = async () => {
+    const id = document.getElementById('sick-edit-id').value;
+    const from = document.getElementById('sick-edit-from').value;
+    const to = document.getElementById('sick-edit-to').value;
+    const note = document.getElementById('sick-edit-note').value;
+    if(!from||!to)return;
+    await updateDoc(doc(db,'sickDays',id),{from,to,note});
+    closeModal('sick-edit-modal');
+    loadSickList();
+  };
+
+  // ── ARBEITSPLAN ──
+  let scheduleWeekOffset = 0;
+  let adminScheduleWeekOffset = 0;
+
+  function getWeekDates(offset=0) {
+    const now = new Date();
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (day===0?6:day-1) + offset*7);
+    const days = [];
+    for(let i=0;i<7;i++){
+      const d = new Date(monday);
+      d.setDate(monday.getDate()+i);
+      days.push(d);
+    }
+    return days;
+  }
+
+  function dateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function getKW(d) {
+    const tmp = new Date(d); tmp.setHours(0,0,0,0);
+    tmp.setDate(tmp.getDate()+3-(tmp.getDay()+6)%7);
+    const week1 = new Date(tmp.getFullYear(),0,4);
+    return 1+Math.round(((tmp-week1)/86400000-3+(week1.getDay()+6)%7)/7);
+  }
+
+  const DEPTS_ORDER = ['Bäckerei','Laden & Tearoom','Dorfladen'];
+  const DAY_NAMES = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const MONTH_NAMES_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+  // ── MITARBEITER ARBEITSPLAN ──
+  window.changeScheduleWeek = (dir) => { scheduleWeekOffset += dir; loadSchedule(); };
+
+  async function loadSchedule() {
+    const days = getWeekDates(scheduleWeekOffset);
+    const kw = getKW(days[0]);
+    document.getElementById('schedule-week-label').innerHTML =
+      `Arbeitsplan <span class="kw-badge">KW ${kw}</span>`;
+    const fromKey = dateKey(days[0]), toKey = dateKey(days[6]);
+    const content = document.getElementById('schedule-content');
+    content.innerHTML = '<div class="empty-state">Lade...</div>';
+
+    // Ensure allUsers is loaded (needed to show colleague names)
+    if (!allUsers || allUsers.length === 0) {
+      const usnap = await getDocs(collection(db,'users'));
+      allUsers = usnap.docs.map(d=>({id:d.id,...d.data()}));
+    }
+
+    // Get employee's departments
+    const myDepts = currentProfile?.departments || [];
+
+    // Load shifts for this week
+    const snap = await getDocs(query(collection(db,'shifts'),where('date','>=',fromKey),where('date','<=',toKey)));
+    const shifts = snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Load approved vacations
+    const vsnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
+    const vacations = vsnap.docs.map(d=>d.data());
+
+    // Load wishes (Freiwünsche)
+    const wsnap = await getDocs(query(collection(db,'wishes'),where('from','<=',toKey)));
+    const wishes = wsnap.docs.map(d=>d.data()).filter(w=>w.to>=fromKey);
+
+    const deptsToShow = myDepts.length > 0 ? myDepts : DEPTS_ORDER;
+    content.innerHTML = '';
+
+    deptsToShow.forEach(dept => {
+      const section = document.createElement('div');
+      section.className = 'schedule-dept-section';
+      section.innerHTML = `<div class="schedule-dept-title">${dept}</div>`;
+
+      days.forEach((day,di) => {
+        const key = dateKey(day);
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'schedule-day';
+        const isToday = key === dateKey(new Date());
+        dayDiv.innerHTML = `<div class="schedule-day-header">
+          <span>${DAY_NAMES[di]}</span>
+          <span class="schedule-day-date">${day.getDate()}. ${MONTH_NAMES_SHORT[day.getMonth()]}</span>
+          ${isToday?'<span class="kw-badge">Heute</span>':''}
+        </div>`;
+
+        // Shifts for this dept and day
+        const dayShifts = shifts.filter(s=>s.date===key&&s.department===dept)
+          .sort((a,b)=>a.from.localeCompare(b.from));
+
+        // Vacation entries for this day
+        if (allUsers) {
+          allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+            const isOnVac = vacations.some(v=>key>=v.from&&key<=v.to&&v.uid===u.id);
+            if(isOnVac){
+              const vi=document.createElement('div');
+              vi.className='shift-item vacation';
+              vi.innerHTML=`<div><div class="shift-name">🌴 ${u.name}</div><div class="shift-note">Ferien</div></div>`;
+              dayDiv.appendChild(vi);
+            }
+          });
+
+          // Freiwunsch-Einträge für diesen Tag
+          allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+            const hasWish = wishes.some(w=>key>=w.from&&key<=w.to&&w.uid===u.id);
+            if(hasWish){
+              const wi=document.createElement('div');
+              wi.className='shift-item wish';
+              wi.innerHTML=`<div><div class="shift-name">☁️ ${u.name}</div><div class="shift-note">Freiwunsch</div></div>`;
+              dayDiv.appendChild(wi);
+            }
+          });
+        }
+
+        dayShifts.forEach(s => {
+          const u = allUsers?.find(x=>x.id===s.uid);
+          const item = document.createElement('div');
+          item.className = 'shift-item';
+          item.innerHTML = `<div>
+            <div class="shift-name">${u?.name||'—'}</div>
+            <div class="shift-time">${s.from} – ${s.to}</div>
+            ${s.note?`<div class="shift-note">${s.note}</div>`:''}
+          </div>`;
+          dayDiv.appendChild(item);
+        });
+
+        if(dayShifts.length===0
+           && !vacations.some(v=>days[di]>=new Date(v.from+'T12:00:00')&&days[di]<=new Date(v.to+'T12:00:00'))
+           && !wishes.some(w=>days[di]>=new Date(w.from+'T12:00:00')&&days[di]<=new Date(w.to+'T12:00:00'))){
+          const empty = document.createElement('div');
+          empty.style.cssText='font-size:12px;color:var(--text-dim);padding:4px 0;';
+          empty.textContent='Keine Schichten';
+          dayDiv.appendChild(empty);
+        }
+
+        section.appendChild(dayDiv);
+      });
+      content.appendChild(section);
+    });
+  }
+
+  // ── ADMIN ARBEITSPLAN ──
+  window.changeAdminScheduleWeek = (dir) => { adminScheduleWeekOffset += dir; loadAdminSchedule(); };
+
+  window.loadAdminSchedule = async () => {
+    const days = getWeekDates(adminScheduleWeekOffset);
+    const kw = getKW(days[0]);
+    document.getElementById('admin-schedule-week-label').innerHTML =
+      `Arbeitsplan <span class="kw-badge">KW ${kw}</span>`;
+    const fromKey = dateKey(days[0]), toKey = dateKey(days[6]);
+    const deptFilter = document.getElementById('admin-schedule-dept').value;
+    const content = document.getElementById('admin-schedule-content');
+    content.innerHTML = '<div class="empty-state">Lade...</div>';
+
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+
+    const snap = await getDocs(query(collection(db,'shifts'),where('date','>=',fromKey),where('date','<=',toKey)));
+    const shifts = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const vsnap = await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
+    const vacations = vsnap.docs.map(d=>d.data());
+    const wsnap = await getDocs(query(collection(db,'wishes'),where('from','<=',toKey)));
+    const wishes = wsnap.docs.map(d=>d.data()).filter(w=>w.to>=fromKey);
+
+    const deptsToShow = deptFilter ? [deptFilter] : DEPTS_ORDER;
+    content.innerHTML = '';
+
+    deptsToShow.forEach(dept => {
+      const section = document.createElement('div');
+      section.className = 'schedule-dept-section';
+      section.innerHTML = `<div class="schedule-dept-title">${dept}</div>`;
+
+      days.forEach((day,di) => {
+        const key = dateKey(day);
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'schedule-day';
+        const isToday = key === dateKey(new Date());
+        dayDiv.innerHTML = `<div class="schedule-day-header">
+          <span>${DAY_NAMES[di]}</span>
+          <span class="schedule-day-date">${day.getDate()}. ${MONTH_NAMES_SHORT[day.getMonth()]}</span>
+          ${isToday?'<span class="kw-badge">Heute</span>':''}
+        </div>`;
+
+        // Vacation entries
+        allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+          const isOnVac = vacations.some(v=>key>=v.from&&key<=v.to&&v.uid===u.id);
+          if(isOnVac){
+            const vi=document.createElement('div');
+            vi.className='shift-item vacation';
+            vi.innerHTML=`<div><div class="shift-name">🌴 ${u.name}</div><div class="shift-note">Ferien genehmigt</div></div>`;
+            dayDiv.appendChild(vi);
+          }
+        });
+
+        // Freiwunsch entries
+        allUsers.filter(u=>(u.departments||[]).includes(dept)&&u.active!==false).forEach(u=>{
+          const hasWish = wishes.some(w=>key>=w.from&&key<=w.to&&w.uid===u.id);
+          if(hasWish){
+            const wi=document.createElement('div');
+            wi.className='shift-item wish';
+            wi.innerHTML=`<div><div class="shift-name">☁️ ${u.name}</div><div class="shift-note">Freiwunsch</div></div>`;
+            dayDiv.appendChild(wi);
+          }
+        });
+
+        // Shifts
+        const dayShifts = shifts.filter(s=>s.date===key&&s.department===dept)
+          .sort((a,b)=>a.from.localeCompare(b.from));
+
+        dayShifts.forEach(s => {
+          const u = allUsers.find(x=>x.id===s.uid);
+          const item = document.createElement('div');
+          item.className = 'shift-item';
+          item.innerHTML = `<div style="flex:1;">
+            <div class="shift-name">${u?.name||'—'}</div>
+            <div class="shift-time">${s.from} – ${s.to}</div>
+            ${s.note?`<div class="shift-note">${s.note}</div>`:''}
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="openEditShift('${s.id}','${s.uid}','${s.department}','${s.from}','${s.to}','${s.note||''}','${key}')">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteShift('${s.id}')">🗑</button>
+          </div>`;
+          dayDiv.appendChild(item);
+        });
+
+        // Add shift button
+        const addBtn = document.createElement('button');
+        addBtn.className = 'shift-add-btn';
+        addBtn.textContent = '+ Schicht hinzufügen';
+        addBtn.onclick = () => openNewShift(key, dept);
+        dayDiv.appendChild(addBtn);
+
+        section.appendChild(dayDiv);
+      });
+      content.appendChild(section);
+    });
+  };
+
+  // Populate shift user select
+  function populateShiftUsers(selectedUid='', deptFilter='') {
+    const sel = document.getElementById('shift-uid');
+    const users = allUsers.filter(u=>u.active!==false&&(deptFilter?((u.departments||[]).includes(deptFilter)):true))
+      .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    sel.innerHTML = users.map(u=>`<option value="${u.id}"${u.id===selectedUid?' selected':''}>${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}</option>`).join('');
+  }
+
+  window.openNewShift = (date, dept) => {
+    document.getElementById('shift-modal-title').textContent = 'Schicht eintragen';
+    document.getElementById('shift-id').value = '';
+    document.getElementById('shift-date').value = date;
+    document.getElementById('shift-dept').value = dept;
+    document.getElementById('shift-from').value = '';
+    document.getElementById('shift-to').value = '';
+    document.getElementById('shift-note').value = '';
+    populateShiftUsers('', dept);
+    document.getElementById('shift-modal').classList.add('open');
+  };
+
+  window.openEditShift = (id, uid, dept, from, to, note, date) => {
+    document.getElementById('shift-modal-title').textContent = 'Schicht bearbeiten';
+    document.getElementById('shift-id').value = id;
+    document.getElementById('shift-date').value = date;
+    document.getElementById('shift-dept').value = dept;
+    document.getElementById('shift-from').value = from;
+    document.getElementById('shift-to').value = to;
+    document.getElementById('shift-note').value = note;
+    populateShiftUsers(uid, dept);
+    document.getElementById('shift-modal').classList.add('open');
+  };
+
+  window.saveShift = async () => {
+    const id = document.getElementById('shift-id').value;
+    const date = document.getElementById('shift-date').value;
+    const uid = document.getElementById('shift-uid').value;
+    const dept = document.getElementById('shift-dept').value;
+    const from = document.getElementById('shift-from').value;
+    const to = document.getElementById('shift-to').value;
+    const note = document.getElementById('shift-note').value;
+    if(!uid||!from||!to){return;}
+    const data = {uid, date, department:dept, from, to, note, kw: getKW(new Date(date+'T12:00:00'))};
+    if(id){
+      await updateDoc(doc(db,'shifts',id), data);
+    } else {
+      await setDoc(doc(db,'shifts',`shift_${Date.now()}`), data);
+    }
+    closeModal('shift-modal');
+    loadAdminSchedule();
+  };
+
+  window.deleteShift = async (id) => {
+    if(!confirm('Schicht wirklich löschen?'))return;
+    await deleteDoc(doc(db,'shifts',id));
+    loadAdminSchedule();
+  };
+  let currentRequestFilter = 'pending';
+  window.loadVacationRequests = async (filter) => {
+    currentRequestFilter = filter;
+    ['pending','approved','rejected'].forEach(f=>{
+      const btn=document.getElementById(`req-filter-${f}`);
+      if(btn){btn.style.borderColor=f===filter?'var(--accent)':'var(--border)';btn.style.color=f===filter?'var(--accent)':'var(--text-dim)';}
+    });
+    const list=document.getElementById('vacation-requests-list');
+    list.innerHTML='<div class="empty-state">Lade...</div>';
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+    const snap=await getDocs(query(collection(db,'vacations'),where('status','==',filter)));
+    const requests=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.from.localeCompare(b.from));
+    list.innerHTML='';
+    if(!requests.length){list.innerHTML=`<div class="empty-state">Keine ${filter==='pending'?'ausstehenden':filter==='approved'?'genehmigten':'abgelehnten'} Anträge</div>`;return;}
+    requests.forEach(v=>{
+      const u=allUsers.find(x=>x.id===v.uid);
+      const item=document.createElement('div');
+      item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='10px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date" style="font-size:15px;">${u?.name||'Unbekannt'}</div>
+        <div class="entry-detail">🌴 ${formatVacDate(v.from)}</div>
+        <div class="entry-detail">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail">${v.note}</div>`:''}
+        ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        ${filter==='pending'?`
+          <button class="btn btn-primary btn-sm" onclick="approveVacation('${v.id}')">✓ Genehmigen</button>
+          <button class="btn btn-danger btn-sm" onclick="openReject('${v.id}')">✕ Ablehnen</button>
+        `:''}
+        <button class="btn btn-secondary btn-sm" onclick="adminDeleteVacation('${v.id}')">🗑</button>
+      </div>`;
+      list.appendChild(item);
+    });
+  };
+
+  window.adminDeleteVacation = async (id) => {
+    if(!confirm('Diesen Ferienantrag wirklich löschen?'))return;
+    await deleteDoc(doc(db,'vacations',id));
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
+
+  window.approveVacation = async (id) => {
+    await updateDoc(doc(db,'vacations',id),{status:'approved'});
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
+
+  window.openReject = (id) => {
+    document.getElementById('reject-vac-id').value=id;
+    document.getElementById('reject-reason').value='';
+    document.getElementById('reject-modal').classList.add('open');
+  };
+
+  window.confirmReject = async () => {
+    const id=document.getElementById('reject-vac-id').value;
+    const reason=document.getElementById('reject-reason').value.trim();
+    await updateDoc(doc(db,'vacations',id),{status:'rejected',...(reason?{rejectReason:reason}:{})});
+    closeModal('reject-modal');
+    loadVacationRequests(currentRequestFilter);
+    loadPendingBadge();
+  };
+
+  async function loadPendingBadge() {
+    if(!isAdminOrLeitung())return;
+    const snap=await getDocs(query(collection(db,'vacations'),where('status','==','pending')));
+    const badge=document.getElementById('requests-badge');
+    if(badge){if(snap.size>0){badge.style.display='inline';badge.textContent=snap.size;}else{badge.style.display='none';}}
+  }
+
+  // ── ABTEILUNG CHECKBOX STYLING ──
+  window.toggleDeptCheck = (cb) => {
+    cb.closest('.dept-check').classList.toggle('checked', cb.checked);
+  };
+
+  // ── STEMPEL ──
+  async function loadTodayStamp() {
+    const key=todayKey(), ref=doc(db,'timeEntries',`${currentUser.uid}_${key}`);
+    const snap=await getDoc(ref);
+    renderStampUI(snap.exists()?snap.data():null);
+  }
+
+  function renderDeptSelector(entry) {
+    const depts = currentProfile?.departments || [];
+    const area = document.getElementById('dept-selector-area');
+    if (depts.length <= 1) { area.innerHTML=''; return; } // 0 oder 1 Abteilung → keine Auswahl nötig
+    if (entry?.endMin) { area.innerHTML=''; return; }
+    const currentDept = entry?.department || selectedDept || depts[0];
+    area.innerHTML = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">ABTEILUNG</div><div class="dept-selector">${depts.map(d=>`<button class="dept-btn${d===currentDept?' selected':''}" onclick="selectDept('${d}')">${d}</button>`).join('')}</div>`;
+  }
+
+  window.selectDept = (dept) => {
+    selectedDept = dept;
+    document.querySelectorAll('.dept-btn').forEach(b=>b.classList.toggle('selected', b.textContent===dept));
+  };
+
+  function getActiveDept() {
+    const depts = currentProfile?.departments || [];
+    if (depts.length === 0) return null;
+    if (depts.length === 1) return depts[0];
+    return selectedDept || depts[0];
+  }
+
+  function renderStampUI(entry) {
+    const badge=document.getElementById('status-badge'), times=document.getElementById('stamp-times'), actions=document.getElementById('stamp-actions'), summary=document.getElementById('today-summary');
+    renderDeptSelector(entry);
+    if (!entry||!entry.startMin) {
+      badge.className='status-badge out'; badge.innerHTML='<span class="dot"></span> Nicht eingestempelt';
+      times.innerHTML=''; actions.innerHTML='<button class="btn btn-primary" onclick="stampIn()">✓ Kommen</button>';
+      summary.style.display='none'; return;
+    }
+    let rows=`<div class="stamp-row"><span>Kommen</span><span>${minToStr(entry.startMin)}</span></div>`;
+    if(entry.department) rows=`<div class="stamp-row"><span>Abteilung</span><span>${entry.department}</span></div>`+rows;
+    if(entry.pauseStartMin) rows+=`<div class="stamp-row"><span>Pause von</span><span>${minToStr(entry.pauseStartMin)}</span></div>`;
+    if(entry.pauseEndMin) rows+=`<div class="stamp-row"><span>Pause bis</span><span>${minToStr(entry.pauseEndMin)}</span></div>`;
+    if(entry.endMin) rows+=`<div class="stamp-row"><span>Gehen</span><span>${minToStr(entry.endMin)}</span></div>`;
+    times.innerHTML=rows;
+    if(entry.endMin){
+      badge.className='status-badge out'; badge.innerHTML='<span class="dot"></span> Ausgestempelt';
+      actions.innerHTML=''; summary.style.display='block';
+      document.getElementById('today-worked').textContent=minutesToHM(calcWorked(entry));
+    } else if(entry.pauseStartMin&&!entry.pauseEndMin){
+      badge.className='status-badge pause'; badge.innerHTML='<span class="dot"></span> Pause';
+      actions.innerHTML='<button class="btn btn-primary" onclick="stampPauseEnd()">▶ Pause beenden</button>';
+      summary.style.display='none';
+    } else {
+      badge.className='status-badge in'; badge.innerHTML='<span class="dot"></span> Eingestempelt';
+      actions.innerHTML=`<button class="btn btn-secondary" onclick="stampPauseStart()">⏸ Pause</button><button class="btn btn-danger" onclick="stampOut()">✕ Gehen</button>`;
+      summary.style.display='none';
+    }
+  }
+
+  function nowMin(){const n=new Date();return n.getHours()*60+n.getMinutes();}
+
+  window.stampIn = async () => {
+    if (currentProfile?.startDate && todayKey() < currentProfile.startDate) {
+      const d = new Date(currentProfile.startDate+'T12:00:00');
+      alert(`Du kannst ab ${d.toLocaleDateString('de-CH',{day:'numeric',month:'long',year:'numeric'})} stempeln.`);
+      return;
+    }
+    const key=todayKey(), ref=doc(db,'timeEntries',`${currentUser.uid}_${key}`);
+    const dept = getActiveDept();
+    const entry={uid:currentUser.uid,date:key,startMin:nowMin(),...(dept?{department:dept}:{})};
+    await setDoc(ref,entry); renderStampUI(entry);
+  };
+  window.stampPauseStart = async () => {
+    const key=todayKey(), ref=doc(db,'timeEntries',`${currentUser.uid}_${key}`);
+    const snap=await getDoc(ref); const data=snap.data();
+    await updateDoc(ref,{pauseStartMin:nowMin()}); renderStampUI({...data,pauseStartMin:nowMin()});
+  };
+  window.stampPauseEnd = async () => {
+    const key=todayKey(), ref=doc(db,'timeEntries',`${currentUser.uid}_${key}`);
+    const snap=await getDoc(ref); const data=snap.data();
+    await updateDoc(ref,{pauseEndMin:nowMin()}); renderStampUI({...data,pauseEndMin:nowMin()});
+  };
+  window.stampOut = async () => {
+    const key=todayKey(), ref=doc(db,'timeEntries',`${currentUser.uid}_${key}`);
+    const snap=await getDoc(ref); const data=snap.data();
+    await updateDoc(ref,{endMin:nowMin()}); renderStampUI({...data,endMin:nowMin()});
+  };
+
+  // ── EIGENE ÜBERSICHT ──
+  window.changeMonth=(dir)=>{overviewMonth+=dir;if(overviewMonth>11){overviewMonth=0;overviewYear++;}if(overviewMonth<0){overviewMonth=11;overviewYear--;}loadOverview();};
+
+  async function loadOverview() {
+    const MN=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    document.getElementById('month-label').textContent=`${MN[overviewMonth]} ${overviewYear}`;
+    const s=`${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-01`, e=`${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-31`;
+    const snap=await getDocs(query(collection(db,'timeEntries'),where('uid','==',currentUser.uid),where('date','>=',s),where('date','<=',e),orderBy('date')));
+    const entries=snap.docs.map(d=>d.data());
+    let worked=0; entries.forEach(e=>worked+=calcWorked(e));
+    const isStunden = currentProfile?.employmentType === 'stundenlöhner';
+    document.getElementById('stat-card-soll').style.display = isStunden ? 'none' : 'block';
+    document.getElementById('stat-card-diff').style.display = isStunden ? 'none' : 'block';
+    const myWpw = Number(currentProfile?.workdaysPerWeek)||5;
+    const vsnap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
+    const vacations=vsnap.docs.map(d=>({id:d.id,...d.data()}));
+    const holidays=getBernHolidays(overviewYear).map(h=>h.date);
+    let vacDays=0;
+    vacations.forEach(v=>{
+      const f=v.from, t=v.to;
+      const d=new Date(overviewYear,overviewMonth,1);
+      while(d.getMonth()===overviewMonth){
+        const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t&&isWorkday(d,myWpw)&&!holidays.includes(key))vacDays++;
+        d.setDate(d.getDate()+1);
+      }
+    });
+    if (isStunden) {
+      // Stundenlöhner: nur gearbeitete Stunden + Ferientage, kein Soll/Differenz
+      document.getElementById('stat-ist').textContent=minutesToHM(worked);
+      document.getElementById('stat-vacation').textContent=vacDays+'T';
+    } else {
+      const dailyMin = ((Number(currentProfile?.weeklyHours)||0) / myWpw) * 60;
+      // Load sick work days for this month (nur tatsächliche Arbeitstage)
+      const sickSnapEarly = await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+      const monthHolidaysEarly = getBernHolidays(overviewYear).map(h=>h.date);
+      let sickWorkDays = 0;
+      sickSnapEarly.docs.forEach(d=>{
+        const v=d.data(); const f=v.from, t=v.to;
+        const dd=new Date(overviewYear,overviewMonth,1);
+        while(dd.getMonth()===overviewMonth){
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw)&&!monthHolidaysEarly.includes(key))sickWorkDays++;
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+      const soll=getSoll(overviewYear,overviewMonth), vacMin=vacDays*dailyMin, sickMin=sickWorkDays*dailyMin, nettoSoll=soll-vacMin-sickMin, diff=worked-nettoSoll;
+      document.getElementById('stat-soll').textContent=minutesToHM(nettoSoll);
+      document.getElementById('stat-ist').textContent=minutesToHM(worked);
+      const de=document.getElementById('stat-diff'); de.textContent=(diff>=0?'+':'')+minutesToHM(diff); de.className='value '+(diff>=0?'positive':'negative');
+      document.getElementById('stat-vacation').textContent=vacDays+'T';
+    }
+    const list=document.getElementById('entries-list');
+    list.innerHTML='';
+    // Remove old gleitzeit/feriensaldo card if exists
+    const oldCard = document.getElementById('gleitzeit-card');
+    if (oldCard) oldCard.remove();
+    const oldVacCard = document.getElementById('feriensaldo-card');
+    if (oldVacCard) oldVacCard.remove();
+
+    // Feriensaldo (alle mit Startdatum & canUseVacation) - voller (anteiliger) Jahresanspruch ab erstem Monat des jeweiligen Jahres,
+    // läuft über Jahre kumuliert weiter (unbegrenzter Übertrag), wird am Austrittsdatum eingefroren
+    if (currentProfile?.startDate && currentProfile.canUseVacation !== false) {
+      const [sy, sm] = currentProfile.startDate.split('-').map(Number);
+      const startMonthIdx = sy*12 + (sm-1);
+      const curMonthIdx = overviewYear*12 + overviewMonth;
+      if (curMonthIdx >= startMonthIdx) {
+        const annualVac = Number(currentProfile.vacationDaysPerYear)||0;
+        let ey=null, em=null;
+        if (currentProfile.endDate) { const p=currentProfile.endDate.split('-').map(Number); ey=p[0]; em=p[1]; }
+        const yearEntitlement = (year) => {
+          if (ey!==null && year>ey) return 0;
+          if (year<sy) return 0;
+          const sMonth = (year===sy) ? sm : 1;
+          const eMonth = (ey!==null && year===ey) ? em : 12;
+          if (eMonth<sMonth) return 0;
+          return annualVac * (eMonth-sMonth+1)/12;
+        };
+        const effectiveYear = (ey!==null && overviewYear>ey) ? ey : overviewYear;
+        let cumEntitlement=0;
+        for(let y=sy;y<=effectiveYear;y++) cumEntitlement+=yearEntitlement(y);
+
+        const myWpwVac = Number(currentProfile.workdaysPerWeek)||5;
+        const vacHolidays = new Set();
+        for(let yr=sy; yr<=overviewYear; yr++) getBernHolidays(yr).forEach(h=>vacHolidays.add(h.date));
+        const vsnap3 = await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
+        let takenBeforeMonth=0;
+        const limitD = new Date(overviewYear, overviewMonth, 1);
+        vsnap3.docs.forEach(d=>{
+          const v=d.data(); const f=v.from, t=v.to;
+          const dd=new Date(sy, sm-1, 1);
+          while(dd<limitD){
+            const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+            if(key>=f&&key<=t&&isWorkday(dd,myWpwVac)&&!vacHolidays.has(key))takenBeforeMonth++;
+            dd.setDate(dd.getDate()+1);
+          }
+        });
+        const feriensaldo = cumEntitlement - takenBeforeMonth;
+        const vacCard=document.createElement('div');
+        vacCard.id='feriensaldo-card';
+        vacCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
+        const displayStartVac = new Date(overviewYear, overviewMonth, 1).toLocaleDateString('de-CH');
+        const vacFrozenNote = (ey!==null && overviewYear>ey) ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Eingefroren per Austritt ${new Date(currentProfile.endDate+'T12:00:00').toLocaleDateString('de-CH')}</div>` : '';
+        vacCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Feriensaldo (Stand ${displayStartVac})</div>
+          <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${feriensaldo>=0?'var(--text)':'var(--red)'};">${feriensaldo.toFixed(1)} Tage</div>${vacFrozenNote}`;
+        list.parentNode.insertBefore(vacCard,list);
+      }
+    }
+
+    // Gleitzeitkonto (nur Festangestellte mit Startdatum) - friert am Austrittsdatum ein, falls gesetzt
+    if (!isStunden && currentProfile?.startDate) {
+      const startDate = currentProfile.startDate;
+      const naturalEndOfMonth = `${overviewYear}-${String(overviewMonth+1).padStart(2,'0')}-${String(new Date(overviewYear, overviewMonth+1, 0).getDate()).padStart(2,'0')}`;
+      const isFrozen = currentProfile.endDate && currentProfile.endDate < naturalEndOfMonth;
+      const endOfMonth = isFrozen ? currentProfile.endDate : naturalEndOfMonth;
+      const allSnap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',currentUser.uid), where('date','>=',startDate), where('date','<=',endOfMonth)));
+      const allEntries = allSnap.docs.map(d=>d.data());
+      let cumWorked = 0; allEntries.forEach(e=>cumWorked+=calcWorked(e));
+      const startD = new Date(startDate.split('-')[0], startDate.split('-')[1]-1, startDate.split('-')[2]);
+      const endD = new Date(endOfMonth.split('-')[0], endOfMonth.split('-')[1]-1, endOfMonth.split('-')[2]);
+      const allHolidays = new Set();
+      for(let yr=startD.getFullYear();yr<=endD.getFullYear();yr++) getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
+      const myWpw2 = Number(currentProfile.workdaysPerWeek)||5;
+      const dailyMin=((Number(currentProfile.weeklyHours)||0)/myWpw2)*60;
+      // Cumulative soll: tatsächliche Arbeitstage, ohne Feiertage, ab Startdatum bis Ende aktueller Monat (oder Austrittsdatum)
+      let cumSollDays=0; const dc=new Date(startD);
+      while(dc<=endD){
+        const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;
+        if(isWorkday(dc,myWpw2)&&!allHolidays.has(key))cumSollDays++;
+        dc.setDate(dc.getDate()+1);
+      }
+      const cumSoll=Math.round(cumSollDays*dailyMin);
+      // Cumulative vacation - reduces soll
+      const vsnap2=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid),where('status','==','approved')));
+      let cumVacDays=0;
+      vsnap2.docs.forEach(d=>{
+        const v=d.data(); const f=v.from, t=v.to;
+        const dd=new Date(startD);
+        while(dd<=endD){
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw2)&&!allHolidays.has(key))cumVacDays++;
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+      const cumNettoSoll=cumSoll - Math.round(cumVacDays*dailyMin);
+      // Also subtract sick work days from cumulative soll
+      const cumSickSnap=await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+      let cumSickWorkDays=0;
+      cumSickSnap.docs.forEach(d=>{
+        const v=d.data(); const f=v.from, t=v.to;
+        const dd=new Date(startD);
+        while(dd<=endD){
+          const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t&&isWorkday(dd,myWpw2)&&!allHolidays.has(key))cumSickWorkDays++;
+          dd.setDate(dd.getDate()+1);
+        }
+      });
+      const cumFinalSoll=cumNettoSoll - Math.round(cumSickWorkDays*dailyMin);
+      const cumDiff=cumWorked-cumFinalSoll;
+      const overCard=document.createElement('div');
+      overCard.id='gleitzeit-card';
+      overCard.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;';
+      const displayStart = new Date(overviewYear, overviewMonth, 1).toLocaleDateString('de-CH');
+      const frozenNote = isFrozen ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Eingefroren per Austritt ${new Date(currentProfile.endDate+'T12:00:00').toLocaleDateString('de-CH')}</div>` : '';
+      overCard.innerHTML=`<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;">Gleitzeitkonto (ab ${displayStart})</div>
+        <div style="font-size:28px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;color:${cumDiff>=0?'var(--green)':'var(--red)'};">${cumDiff>=0?'+':''}${minutesToHM(cumDiff)}</div>${frozenNote}`;
+      list.parentNode.insertBefore(overCard,list);
+    }
+
+    // Build full calendar for the month
+    const entryMap = {}; entries.forEach(e=>entryMap[e.date]=e);
+    const monthHolidays = getBernHolidays(overviewYear);
+    const holidayMap = {}; monthHolidays.forEach(h=>holidayMap[h.date]=h.name);
+    const vacDaySet = new Set();
+    vacations.forEach(v=>{
+      const f=v.from, t=v.to;
+      const dd=new Date(overviewYear,overviewMonth,1);
+      while(dd.getMonth()===overviewMonth){
+        const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+        // Show all days incl Sa/So, but exclude holidays
+        if(key>=f&&key<=t&&!holidayMap[key])vacDaySet.add(key);
+        dd.setDate(dd.getDate()+1);
+      }
+    });
+
+    // Sick days (all days for display, Mo-Fr for soll)
+    const sickDaySet = new Set();
+    const sickWorkDaySet = new Set();
+    const sickSnap = await getDocs(query(collection(db,'sickDays'),where('uid','==',currentUser.uid)));
+    sickSnap.docs.forEach(d=>{
+      const v=d.data(); const f=v.from, t=v.to;
+      const dd=new Date(overviewYear,overviewMonth,1);
+      while(dd.getMonth()===overviewMonth){
+        const dow=dd.getDay();
+        const key=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t){ sickDaySet.add(key); if(isWorkday(dd,Number(currentProfile?.workdaysPerWeek)||5)&&!holidayMap[key])sickWorkDaySet.add(key); }
+        dd.setDate(dd.getDate()+1);
+      }
+    });
+
+    // Iterate all days of month
+    const day=new Date(overviewYear,overviewMonth,1);
+    while(day.getMonth()===overviewMonth){
+      const key=`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      const ds=day.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'});
+      const item=document.createElement('div'); item.className='entry-item';
+      if(entryMap[key]){
+        const e=entryMap[key], w=calcWorked(e);
+        let det=minToStr(e.startMin); if(e.department)det=`[${e.department}] `+det;
+        if(e.pauseStartMin)det+=` · Pause ${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`; if(e.endMin)det+=` · ${minToStr(e.endMin)}`;
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">${det}</div></div>
+          <div><span class="entry-hours">${minutesToHM(w)}</span></div>`;
+      } else if(holidayMap[key]){
+        item.style.borderColor='rgba(200,169,110,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--accent);">🎉 ${holidayMap[key]}</div></div>`;
+      } else if(vacDaySet.has(key)){
+        item.style.borderColor='rgba(90,158,111,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--green);">🌴 Ferientag bezogen</div></div>`;
+      } else if(sickDaySet.has(key)){
+        item.style.borderColor='rgba(192,80,77,0.3)';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail" style="color:var(--red);">🤒 Krank</div></div>`;
+      } else {
+        item.style.opacity='0.45';
+        item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">Frei</div></div>`;
+      }
+      list.appendChild(item);
+      day.setDate(day.getDate()+1);
+    }
+  }
+
+  // ── EDIT MODAL ──
+  window.openEdit = async (date,uid) => {
+    const ref=doc(db,'timeEntries',`${uid}_${date}`), snap=await getDoc(ref), e=snap.exists()?snap.data():{};
+    document.getElementById('edit-entry-id').value=date; document.getElementById('edit-entry-uid').value=uid;
+    document.getElementById('edit-start').value=minToStr(e.startMin); document.getElementById('edit-pause-start').value=minToStr(e.pauseStartMin);
+    document.getElementById('edit-pause-end').value=minToStr(e.pauseEndMin); document.getElementById('edit-end').value=minToStr(e.endMin);
+    document.getElementById('edit-modal').classList.add('open');
+  };
+  window.saveEdit = async () => {
+    const date=document.getElementById('edit-entry-id').value, uid=document.getElementById('edit-entry-uid').value;
+    await updateDoc(doc(db,'timeEntries',`${uid}_${date}`),{startMin:timeToMin(document.getElementById('edit-start').value)||null,pauseStartMin:timeToMin(document.getElementById('edit-pause-start').value)||null,pauseEndMin:timeToMin(document.getElementById('edit-pause-end').value)||null,endMin:timeToMin(document.getElementById('edit-end').value)||null});
+    closeModal('edit-modal'); loadOverview(); if(date===todayKey())loadTodayStamp();
+  };
+  window.closeModal=(id)=>document.getElementById(id).classList.remove('open');
+
+  // ── FERIEN ──
+  window.addVacation = async () => {
+    const f=document.getElementById('vacation-from').value, t=document.getElementById('vacation-to').value, n=document.getElementById('vacation-note').value;
+    if(!f||!t)return;
+    await setDoc(doc(db,'vacations',`${currentUser.uid}_vac_${Date.now()}`),{uid:currentUser.uid,from:f,to:t,note:n,status:'pending',createdAt:new Date().toISOString()});
+    document.getElementById('vacation-from').value=''; document.getElementById('vacation-to').value=''; document.getElementById('vacation-note').value='';
+    const m=document.getElementById('vacation-msg'); m.textContent='✓ Antrag eingereicht – wartet auf Genehmigung!'; setTimeout(()=>m.textContent='',3000);
+    loadVacationList();
+  };
+  function formatVacDate(dateStr) {
+    const p=dateStr.split('-');
+    const d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
+    return d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+
+  async function loadVacationList() {
+    const snap=await getDocs(query(collection(db,'vacations'),where('uid','==',currentUser.uid)));
+    const list=document.getElementById('vacation-list');
+    if(snap.empty){list.innerHTML='<div class="empty-state">Keine Ferienanträge</div>';return;}
+    list.innerHTML='<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Meine Anträge</div>';
+    snap.docs.sort((a,b)=>(b.data().createdAt||'').localeCompare(a.data().createdAt||'')).forEach(d=>{
+      const v=d.data();
+      const status=v.status||'approved';
+      const statusColor=status==='approved'?'var(--green)':status==='rejected'?'var(--red)':'var(--yellow)';
+      const statusLabel=status==='approved'?'✓ Genehmigt':status==='rejected'?'✕ Abgelehnt':'⏳ Ausstehend';
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">🌴 ${formatVacDate(v.from)}</div>
+        <div style="font-size:13px;color:var(--text-dim);">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail" style="margin-top:4px;">${v.note}</div>`:''}
+        ${v.rejectReason?`<div class="entry-detail" style="color:var(--red);">Grund: ${v.rejectReason}</div>`:''}
+        <div style="font-size:12px;font-weight:600;color:${statusColor};margin-top:4px;">${statusLabel}</div>
+      </div>
+      ${status==='pending'?`<button class="btn btn-secondary btn-sm" onclick="deleteVacation('${d.id}')">🗑</button>`:''}`;
+      list.appendChild(item);
+    });
+  }
+  window.deleteVacation=async(id)=>{await deleteDoc(doc(db,'vacations',id));loadVacationList();};
+
+  // ── FREIWÜNSCHE ──
+  window.addWish = async () => {
+    const f=document.getElementById('wish-from').value, t=document.getElementById('wish-to').value, n=document.getElementById('wish-note').value;
+    if(!f||!t)return;
+    await setDoc(doc(db,'wishes',`${currentUser.uid}_wish_${Date.now()}`),{uid:currentUser.uid,from:f,to:t,note:n,createdAt:new Date().toISOString()});
+    document.getElementById('wish-from').value=''; document.getElementById('wish-to').value=''; document.getElementById('wish-note').value='';
+    const m=document.getElementById('wish-msg'); m.textContent='✓ Freiwunsch eingetragen!'; setTimeout(()=>m.textContent='',3000);
+    loadWishList();
+  };
+
+  async function loadWishList() {
+    const snap=await getDocs(query(collection(db,'wishes'),where('uid','==',currentUser.uid)));
+    const list=document.getElementById('wish-list');
+    if(!list)return;
+    if(snap.empty){list.innerHTML='<div class="empty-state">Keine Freiwünsche eingetragen</div>';return;}
+    list.innerHTML='<div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Meine Freiwünsche</div>';
+    snap.docs.sort((a,b)=>(b.data().createdAt||'').localeCompare(a.data().createdAt||'')).forEach(d=>{
+      const v=d.data();
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';item.style.alignItems='flex-start';item.style.gap='8px';
+      item.innerHTML=`<div style="flex:1;">
+        <div class="entry-date">☁️ ${formatVacDate(v.from)}</div>
+        <div style="font-size:13px;color:var(--text-dim);">bis ${formatVacDate(v.to)}</div>
+        ${v.note?`<div class="entry-detail" style="margin-top:4px;">${v.note}</div>`:''}
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="deleteWish('${d.id}')">🗑</button>`;
+      list.appendChild(item);
+    });
+  }
+  window.deleteWish=async(id)=>{await deleteDoc(doc(db,'wishes',id));loadWishList();};
+
+  // ── ADMIN: TEAM ──
+  async function loadAdminUsers() {
+    const snap=await getDocs(collection(db,'users'));
+    allUsers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const list=document.getElementById('admin-user-list'); list.innerHTML='';
+    allUsers.sort((a,b)=>(a.personnelNumber||'').localeCompare(b.personnelNumber||'')).forEach(u=>{
+      const inactive=u.active===false, depts=(u.departments||[]).join(', ')||'—';
+      const isStunden = u.employmentType === 'stundenlöhner';
+      const item=document.createElement('div'); item.className='user-item'+(inactive?' inactive':'');
+      item.innerHTML=`<div>
+        <div class="user-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}
+          <span class="${inactive?'badge-inactive':'badge-active'}">${inactive?'Inaktiv':'Aktiv'}</span>
+          ${isStunden?'<span class="dept-tag" style="background:rgba(212,168,67,0.2);color:var(--yellow);">SL</span>':''}
+        </div>
+        <div class="user-meta">${u.email}</div>
+        <div class="user-meta">${isStunden ? `Stundenlöhner · ${u.vacationDaysPerYear||0}T Ferien/Jahr` : `${u.weeklyHours}h/W · ${u.vacationDaysPerYear}T Ferien`}</div>
+        <div class="user-meta" style="margin-top:4px;">${(u.departments||[]).map(d=>`<span class="dept-tag">${d}</span>`).join('')||'Keine Abteilung'}</div>
+      </div>
+      <div class="user-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openUserEdit('${u.id}')">✎</button>
+        <button class="btn ${inactive?'btn-primary':'btn-danger'} btn-sm" onclick="toggleUserActive('${u.id}',${inactive})">${inactive?'Aktivieren':'Deaktivieren'}</button>
+      </div>`;
+      list.appendChild(item);
+    });
+    // update filter dropdown
+    const sel=document.getElementById('filter-emp'); if(sel){sel.innerHTML='<option value="">Alle</option>';allUsers.filter(u=>u.active!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;sel.appendChild(o);});}
+  }
+
+  window.openUserEdit = (uid) => {
+    const u=allUsers.find(x=>x.id===uid); if(!u)return;
+    const empType = u.employmentType || 'festangestellt';
+    document.getElementById('ue-uid').value=uid;
+    document.getElementById('ue-name').value=u.name||'';
+    document.getElementById('ue-personnel').value=u.personnelNumber||'';
+    document.getElementById('ue-percent').value=u.employmentPercent||100;
+    document.getElementById('ue-workdays').value=u.workdaysPerWeek||5;
+    document.getElementById('ue-hours').value=u.weeklyHours||'';
+    document.getElementById('ue-vacation').value=u.vacationDaysPerYear||'';
+    document.getElementById('ue-startdate').value=u.startDate||'';
+    document.getElementById('ue-enddate').value=u.endDate||'';
+    document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
+    document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
+    document.getElementById('ue-role-group').style.display = isAdmin() ? 'block' : 'none';
+    if(document.getElementById('ue-role'))document.getElementById('ue-role').value = u.role || 'employee';
+    document.querySelector(`input[name="ue-emp-type"][value="${empType}"]`).checked=true;
+    window.toggleUeEmpType();
+    document.getElementById('user-edit-modal').classList.add('open');
+  };
+  window.saveUserEdit = async () => {
+    const uid=document.getElementById('ue-uid').value;
+    const depts=[...document.querySelectorAll('#ue-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
+    const canUseVacation=document.getElementById('ue-can-vacation').checked;
+    const empType=document.querySelector('input[name="ue-emp-type"]:checked').value;
+    const isStunden = empType === 'stundenlöhner';
+    const updateData={
+      name:document.getElementById('ue-name').value.trim(),
+      personnelNumber:document.getElementById('ue-personnel').value.trim(),
+      employmentPercent: Number(document.getElementById('ue-percent').value),
+      workdaysPerWeek: Number(document.getElementById('ue-workdays').value),
+      weeklyHours:isStunden ? 0 : Number(document.getElementById('ue-hours').value),
+      vacationDaysPerYear: Number(document.getElementById('ue-vacation').value),
+      startDate: document.getElementById('ue-startdate').value || null,
+      endDate: document.getElementById('ue-enddate').value || null,
+      departments:depts, canUseVacation: canUseVacation,
+      employmentType:empType
+    };
+    if (isAdmin() && document.getElementById('ue-role')) updateData.role = document.getElementById('ue-role').value;
+    await updateDoc(doc(db,'users',uid), updateData);
+    closeModal('user-edit-modal'); loadAdminUsers();
+  };
+  window.toggleUserActive=async(uid,inactive)=>{await updateDoc(doc(db,'users',uid),{active:inactive});loadAdminUsers();};
+
+  // ── ADMIN: ÜBERSICHT MIT FILTER ──
+  function initAdminFilters() {
+    const now=new Date(), y=now.getFullYear(), m=now.getMonth()+1;
+    const pad=n=>String(n).padStart(2,'0');
+    document.getElementById('filter-from').value=`${y}-${pad(m)}-01`;
+    const last=new Date(y,m,0).getDate();
+    document.getElementById('filter-to').value=`${y}-${pad(m)}-${pad(last)}`;
+  }
+
+  window.loadAdminOverview = async () => {
+    const fromVal=document.getElementById('filter-from').value, toVal=document.getElementById('filter-to').value;
+    const deptFilter=document.getElementById('filter-dept').value, empFilter=document.getElementById('filter-emp').value;
+    const list=document.getElementById('team-overview-list'); list.innerHTML='<div class="empty-state">Lade...</div>';
+    if(!fromVal||!toVal)return;
+    if(allUsers.length===0){const snap=await getDocs(collection(db,'users'));allUsers=snap.docs.map(d=>({id:d.id,...d.data()}));}
+    let users=allUsers.filter(u=>u.active!==false);
+    if(deptFilter)users=users.filter(u=>(u.departments||[]).includes(deptFilter));
+    if(empFilter)users=users.filter(u=>u.id===empFilter);
+    const entriesSnap=await getDocs(query(collection(db,'timeEntries'),where('date','>=',fromVal),where('date','<=',toVal)));
+    const allEntries=entriesSnap.docs.map(d=>d.data());
+    const vacSnap=await getDocs(query(collection(db,'vacations'),where('status','==','approved')));
+    const allVac=vacSnap.docs.map(d=>d.data());
+    const sickSnap=await getDocs(collection(db,'sickDays'));
+    const allSick=sickSnap.docs.map(d=>d.data());
+    list.innerHTML='';
+    if(!users.length){list.innerHTML='<div class="empty-state">Keine Mitarbeitenden gefunden</div>';return;}
+    users.sort((a,b)=>(a.personnelNumber||'').localeCompare(b.personnelNumber||'')).forEach(u=>{
+      // Respect startDate - if not started yet, soll = 0
+      const effectiveFrom = u.startDate && u.startDate > fromVal ? u.startDate : fromVal;
+      const notStartedYet = u.startDate && u.startDate > toVal;
+
+      let entries=allEntries.filter(e=>e.uid===u.id);
+      if(deptFilter)entries=entries.filter(e=>e.department===deptFilter);
+      let worked=0; entries.forEach(e=>worked+=calcWorked(e));
+      const wpw=Number(u.workdaysPerWeek)||5, dm=((Number(u.weeklyHours)||0)/wpw)*60;
+      const allHolidays=new Set();
+      const fromD=new Date(effectiveFrom), toD=new Date(toVal);
+      for(let yr=fromD.getFullYear();yr<=toD.getFullYear();yr++)getBernHolidays(yr).forEach(h=>allHolidays.add(h.date));
+
+      // Vacation days (nur tatsächliche Arbeitstage)
+      let vacDays=0;
+      allVac.filter(v=>v.uid===u.id).forEach(v=>{
+        const f=v.from, t=v.to;
+        const d=new Date(fromD);
+        while(d<=toD){const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(key>=f&&key<=t&&isWorkday(d,wpw)&&!allHolidays.has(key))vacDays++;d.setDate(d.getDate()+1);}
+      });
+
+      // Sick days - all days for display, nur Arbeitstage für Soll
+      let sickAllDays=0, sickWorkDays=0;
+      allSick.filter(v=>v.uid===u.id).forEach(v=>{
+        const f=v.from, t=v.to;
+        const d=new Date(fromD);
+        while(d<=toD){
+          const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          if(key>=f&&key<=t){sickAllDays++;if(isWorkday(d,wpw)&&!allHolidays.has(key))sickWorkDays++;}
+          d.setDate(d.getDate()+1);
+        }
+      });
+
+      // Soll days (nur tatsächliche Arbeitstage) ab effectiveFrom
+      let sollDays=0; const dc=new Date(fromD);
+      while(dc<=toD){const key=`${dc.getFullYear()}-${String(dc.getMonth()+1).padStart(2,'0')}-${String(dc.getDate()).padStart(2,'0')}`;if(isWorkday(dc,wpw)&&!allHolidays.has(key))sollDays++;dc.setDate(dc.getDate()+1);}
+
+      const isStunden = u.employmentType === 'stundenlöhner';
+      const brutto = notStartedYet ? 0 : Math.round(sollDays*dm);
+      const soll = isStunden ? null : brutto - vacDays*dm - sickWorkDays*dm;
+      const diff = isStunden ? null : worked - soll;
+
+      const row=document.createElement('div'); row.className='team-overview-row';
+      row.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="row-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}
+          ${isStunden?'<span class="dept-tag" style="background:rgba(212,168,67,0.2);color:var(--yellow);">SL</span>':''}
+          ${(u.departments||[]).map(d=>`<span class="dept-tag">${d}</span>`).join('')}
+          ${notStartedYet?'<span class="badge-inactive">Noch nicht gestartet</span>':''}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick="openEmpDetail('${u.id}','${u.name}','${fromVal}','${toVal}')">Detail</button>
+          <button class="btn btn-primary btn-sm" onclick="generatePDF('${u.id}','${u.name}','${fromVal}','${toVal}')">📄 PDF</button>
+        </div>
+      </div>
+      <div class="team-overview-stats">
+        ${isStunden
+          ? `<div class="team-stat">Gearbeitet <span>${minutesToHM(worked)}</span></div>
+             <div class="team-stat">Ferien <span>${vacDays}T</span></div>
+             ${sickAllDays>0?`<div class="team-stat">🤒 Krank <span style="color:var(--red);">${sickAllDays}T</span></div>`:''}`
+          : `<div class="team-stat">Soll <span>${minutesToHM(soll)}</span></div>
+             <div class="team-stat">Ist <span>${minutesToHM(worked)}</span></div>
+             <div class="team-stat">Diff <span class="${diff>=0?'pos':'neg'}">${diff>=0?'+':''}${minutesToHM(diff)}</span></div>
+             <div class="team-stat">Ferien <span>${vacDays}T</span></div>
+             ${sickAllDays>0?`<div class="team-stat">🤒 Krank <span style="color:var(--red);">${sickAllDays}T</span></div>`:''}`
+        }
+      </div>`;
+      list.appendChild(row);
+    });
+  };
+
+  // Store current detail context for "new entry" button
+  let detailContext = {};
+
+  window.openEmpDetail = async (uid,name,from,to) => {
+    detailContext = {uid,name,from,to};
+    document.getElementById('emp-detail-title').textContent=name;
+    const content=document.getElementById('emp-detail-content'); content.innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:12px 0;">Lade...</div>';
+    document.getElementById('emp-detail-modal').classList.add('open');
+    // Load all entries for this user in range without orderBy (avoids composite index requirement)
+    const snap=await getDocs(query(collection(db,'timeEntries'),where('uid','==',uid),where('date','>=',from),where('date','<=',to)));
+    const entries=snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    content.innerHTML=`<button class="btn btn-primary" style="margin-bottom:14px;" onclick="openNewAdminEntry()">+ Eintrag manuell hinzufügen</button>`;
+    if(!entries.length){content.innerHTML+=`<div class="empty-state">Keine Einträge – oben neuen Eintrag erstellen</div>`;return;}
+    entries.forEach(e=>{
+      const w=calcWorked(e),d=new Date(e.date+'T12:00:00'),ds=d.toLocaleDateString('de-CH',{weekday:'short',day:'numeric',month:'short'});
+      let det=minToStr(e.startMin); if(e.department)det=`[${e.department}] `+det;
+      if(e.pauseStartMin)det+=` · P ${minToStr(e.pauseStartMin)}–${minToStr(e.pauseEndMin)||'?'}`; if(e.endMin)det+=` · ${minToStr(e.endMin)}`;
+      const item=document.createElement('div');item.className='entry-item';item.style.marginBottom='8px';
+      item.innerHTML=`<div><div class="entry-date">${ds}</div><div class="entry-detail">${det}</div></div>
+        <div style="display:flex;align-items:center;gap:6px;"><span class="entry-hours">${minutesToHM(w)}</span><button class="btn btn-secondary btn-sm" onclick="openAdminEntry('${uid}','${e.date}','${name}')">✎</button><button class="btn btn-danger btn-sm" onclick="deleteAdminEntry('${uid}','${e.date}','${name}')">🗑</button></div>`;
+      content.appendChild(item);
+    });
+  };
+
+  window.deleteAdminEntry = async (uid, date, name) => {
+    if (!confirm(`Eintrag von ${name} am ${date} wirklich löschen?`)) return;
+    await deleteDoc(doc(db,'timeEntries',`${uid}_${date}`));
+    const {from,to} = detailContext;
+    await openEmpDetail(uid, name, from, to);
+    loadAdminOverview();
+  };
+
+  window.openNewAdminEntry = () => {
+    const {uid,name,from} = detailContext;
+    closeModal('emp-detail-modal');
+    document.getElementById('aem-title').textContent=`${name} – Neuer Eintrag`;
+    document.getElementById('aem-uid').value=uid;
+    document.getElementById('aem-date').value=from; // default to start of filter range
+    document.getElementById('aem-start').value='';
+    document.getElementById('aem-pause-start').value='';
+    document.getElementById('aem-pause-end').value='';
+    document.getElementById('aem-end').value='';
+    // Show date field for new entries
+    document.getElementById('aem-date-group').style.display='block';
+    document.getElementById('admin-entry-modal').classList.add('open');
+  };
+
+  window.openAdminEntry = async (uid,date,name) => {
+    closeModal('emp-detail-modal');
+    const snap=await getDoc(doc(db,'timeEntries',`${uid}_${date}`)), e=snap.exists()?snap.data():{};
+    document.getElementById('aem-title').textContent=`${name} – ${date}`;
+    document.getElementById('aem-uid').value=uid; document.getElementById('aem-date').value=date;
+    document.getElementById('aem-date-input').value=date;
+    document.getElementById('aem-date-group').style.display='none'; // hide for existing entries
+    document.getElementById('aem-start').value=minToStr(e.startMin); document.getElementById('aem-pause-start').value=minToStr(e.pauseStartMin);
+    document.getElementById('aem-pause-end').value=minToStr(e.pauseEndMin); document.getElementById('aem-end').value=minToStr(e.endMin);
+    document.getElementById('admin-entry-modal').classList.add('open');
+  };
+  window.saveAdminEntry = async () => {
+    const uid=document.getElementById('aem-uid').value;
+    const dateGroup=document.getElementById('aem-date-group');
+    const date=dateGroup.style.display!=='none'
+      ? document.getElementById('aem-date-input').value
+      : document.getElementById('aem-date').value;
+    if(!date){alert('Bitte Datum angeben.');return;}
+    const ref=doc(db,'timeEntries',`${uid}_${date}`), snap=await getDoc(ref);
+    const data={uid,date,startMin:timeToMin(document.getElementById('aem-start').value)||null,pauseStartMin:timeToMin(document.getElementById('aem-pause-start').value)||null,pauseEndMin:timeToMin(document.getElementById('aem-pause-end').value)||null,endMin:timeToMin(document.getElementById('aem-end').value)||null};
+    if(snap.exists())await updateDoc(ref,data);else await setDoc(ref,data);
+    closeModal('admin-entry-modal'); loadAdminOverview();
+  };
+
+  // ── ADMIN: LIVE ──
+  async function loadLiveStamps() {
+    const key=todayKey(), deptFilter=document.getElementById('live-filter-dept')?.value||'';
+    const list=document.getElementById('live-stamp-list'); list.innerHTML='<div class="empty-state">Lade...</div>';
+    if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
+    let users=allUsers.filter(u=>u.active!==false);
+    if(deptFilter)users=users.filter(u=>(u.departments||[]).includes(deptFilter));
+    const snap=await getDocs(query(collection(db,'timeEntries'),where('date','==',key)));
+    const todayE=snap.docs.map(d=>d.data());
+    list.innerHTML='';
+    users.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(u=>{
+      const e=todayE.find(x=>x.uid===u.id);
+      let label='Nicht eingestempelt',cls='out',det='';
+      if(e){if(e.endMin){label='Ausgestempelt';cls='out';det=`${minToStr(e.startMin)} – ${minToStr(e.endMin)}`;}
+        else if(e.pauseStartMin&&!e.pauseEndMin){label='Pause';cls='pause';det=`seit ${minToStr(e.pauseStartMin)}`;}
+        else{label='Eingestempelt';cls='in';det=`seit ${minToStr(e.startMin)}${e.department?' · '+e.department:''}`;}
+      }
+      const item=document.createElement('div');item.className='live-stamp-item';
+      item.innerHTML=`<div class="live-stamp-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}<span class="live-stamp-badge ${cls}">${label}</span></div>${det?`<div class="live-stamp-detail">${det}</div>`:''}`; list.appendChild(item);
+    });
+    if(!users.length)list.innerHTML='<div class="empty-state">Keine Mitarbeitenden gefunden</div>';
+  }
+  window.loadLiveStamps = loadLiveStamps;
+
+  // ── FEIERTAGE ──
+  function initHolidayYearSelect(){const sel=document.getElementById('holiday-year'),y=new Date().getFullYear();for(let i=y-1;i<=y+2;i++){const o=document.createElement('option');o.value=i;o.textContent=i;if(i===y)o.selected=true;sel.appendChild(o);}}
+  window.renderHolidays=()=>{const y=Number(document.getElementById('holiday-year')?.value||new Date().getFullYear()),hs=getBernHolidays(y),list=document.getElementById('holiday-list');list.innerHTML='';hs.forEach(h=>{const d=new Date(h.date+'T12:00:00'),ds=d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long'});const row=document.createElement('div');row.className='holiday-row';row.innerHTML=`<span>🎉 ${h.name}</span><span style="font-size:13px;color:var(--text-dim);">${ds}</span>`;list.appendChild(row);});};
+
+  // ── NEUER NUTZER ──
+  // ── STELLENPROZENT BERECHNUNG (aus Grundeinstellungen) ──
+  window.calcNewHours = () => {
+    const pct = Number(document.getElementById('new-percent').value);
+    const fh = Number(globalSettings.fulltimeHours), vd = Number(globalSettings.vacationDaysPerYear);
+    if (pct && fh) document.getElementById('new-hours').value = Math.round(fh * pct / 100 * 10) / 10;
+    if (pct && vd) document.getElementById('new-vacation-days').value = Math.round(vd * pct / 100 * 10) / 10;
+  };
+  window.calcUeHours = () => {
+    const pct = Number(document.getElementById('ue-percent').value);
+    const fh = Number(globalSettings.fulltimeHours), vd = Number(globalSettings.vacationDaysPerYear);
+    if (pct && fh) document.getElementById('ue-hours').value = Math.round(fh * pct / 100 * 10) / 10;
+    if (pct && vd) document.getElementById('ue-vacation').value = Math.round(vd * pct / 100 * 10) / 10;
+  };
+
+  window.toggleNewEmpType = () => {
+    const isStunden = document.querySelector('input[name="new-emp-type"]:checked').value === 'stundenlöhner';
+    // Pensum/Arbeitstage/Ferientage bleiben für beide Anstellungsarten sichtbar (für Ferientage-Berechnung nötig)
+    document.getElementById('new-hours-group').style.display = isStunden ? 'none' : 'block';
+    document.getElementById('new-type-fest-label').classList.toggle('checked', !isStunden);
+    document.getElementById('new-type-stunden-label').classList.toggle('checked', isStunden);
+  };
+
+  window.toggleUeEmpType = () => {
+    const isStunden = document.querySelector('input[name="ue-emp-type"]:checked').value === 'stundenlöhner';
+    document.getElementById('ue-hours-group').style.display = isStunden ? 'none' : 'block';
+    document.getElementById('ue-type-fest-label').classList.toggle('checked', !isStunden);
+    document.getElementById('ue-type-stunden-label').classList.toggle('checked', isStunden);
+  };
+  window.createUser = async () => {
+    const name=document.getElementById('new-name').value.trim(), personnel=document.getElementById('new-personnel').value.trim();
+    const email=document.getElementById('new-email').value.trim(), pass=document.getElementById('new-pass').value;
+    const empType=document.querySelector('input[name="new-emp-type"]:checked').value;
+    const isStunden = empType === 'stundenlöhner';
+    const percent = Number(document.getElementById('new-percent').value);
+    const workdaysPerWeek = Number(document.getElementById('new-workdays').value);
+    const hours = isStunden ? 0 : Number(document.getElementById('new-hours').value);
+    const vac = Number(document.getElementById('new-vacation-days').value);
+    const startDate = document.getElementById('new-startdate').value || null;
+    const depts=[...document.querySelectorAll('#new-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
+    const canUseVacation = document.getElementById('new-can-vacation').checked;
+    const role = isAdmin() ? document.getElementById('new-role').value : 'employee';
+    const err=document.getElementById('admin-error'), suc=document.getElementById('admin-success');
+    err.textContent='';suc.textContent='';
+    if(!name||!email||!pass||!workdaysPerWeek||(!isStunden&&!hours)){err.textContent='Bitte alle Pflichtfelder ausfüllen (inkl. Pensum/Arbeitstage pro Woche).';return;}
+    try{
+      const cred=await createUserWithEmailAndPassword(auth,email,pass);
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,canUseVacation,employmentType:empType});
+      ['new-name','new-personnel','new-email','new-pass','new-percent','new-workdays','new-hours','new-vacation-days','new-startdate'].forEach(id=>document.getElementById(id).value='');
+      document.querySelectorAll('#new-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.dept-check').classList.remove('checked');});
+      document.getElementById('new-can-vacation').checked=true;
+      if(document.getElementById('new-role'))document.getElementById('new-role').value='employee';
+      document.querySelector('input[name="new-emp-type"][value="festangestellt"]').checked=true;
+      window.toggleNewEmpType();
+      suc.textContent=`✓ ${name} wurde erstellt!`; setTimeout(()=>suc.textContent='',3000);
+      loadAdminUsers();
+    }catch(e){err.textContent='Fehler: '+e.message;}
+  };
+
+  // ── PDF GENERIERUNG ──
+  window.generatePDF = async (uid, name, fromVal, toVal) => {
+    const u = allUsers.find(x => x.id === uid);
+    if (!u) return;
+    const isStunden = u.employmentType === 'stundenlöhner';
+    const wpw = Number(u.workdaysPerWeek) || 5;
+    const dailyMin = ((Number(u.weeklyHours)||0) / wpw) * 60;
+
+    // Load entries
+    const snap = await getDocs(query(collection(db,'timeEntries'), where('uid','==',uid), where('date','>=',fromVal), where('date','<=',toVal)));
+    const entryMap = {};
+    snap.docs.forEach(d => { const e=d.data(); entryMap[e.date]=e; });
+
+    // Load approved vacations
+    const vsnap = await getDocs(query(collection(db,'vacations'), where('uid','==',uid), where('status','==','approved')));
+    const vacations = vsnap.docs.map(d => d.data());
+    const holidays = getBernHolidays(new Date(fromVal+'T12:00:00').getFullYear());
+    const holidayMap = {}; holidays.forEach(h => holidayMap[h.date]=h.name);
+
+    // Build vacation day set (all days incl Sa/So for display, nur Arbeitstage für Soll)
+    const vacDaySet = new Set(); // all days for display
+    const vacWorkDaySet = new Set(); // nur tatsächliche Arbeitstage für soll
+    vacations.forEach(v => {
+      const f=v.from, t=v.to;
+      const d = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
+      const end = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
+      while(d<=end){
+        const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t&&!holidayMap[key]){
+          vacDaySet.add(key);
+          if(isWorkday(d,wpw))vacWorkDaySet.add(key);
+        }
+        d.setDate(d.getDate()+1);
+      }
+    });
+
+    // Calculate totals
+    let totalWorked = 0;
+    Object.values(entryMap).forEach(e => totalWorked += calcWorked(e));
+    const vacDaysInPeriod = vacWorkDaySet.size; // nur tatsächliche Arbeitstage
+    const fromDate = new Date(fromVal.split('-')[0], fromVal.split('-')[1]-1, fromVal.split('-')[2]);
+    const toDate = new Date(toVal.split('-')[0], toVal.split('-')[1]-1, toVal.split('-')[2]);
+    const monthName = fromDate.toLocaleDateString('de-CH', {month:'long', year:'numeric'});
+
+    // Build sick day set for PDF (all days for display, nur Arbeitstage für Soll)
+    const pdfSickDaySet = new Set(); // all days
+    const pdfSickWorkDaySet = new Set(); // nur tatsächliche Arbeitstage
+    const sickSnapPdf = await getDocs(query(collection(db,'sickDays'), where('uid','==',uid)));
+    sickSnapPdf.docs.forEach(d=>{
+      const v=d.data(); const f=v.from, t=v.to;
+      const cur2=new Date(fromDate);
+      while(cur2<=toDate){
+        const key=`${cur2.getFullYear()}-${String(cur2.getMonth()+1).padStart(2,'0')}-${String(cur2.getDate()).padStart(2,'0')}`;
+        if(key>=f&&key<=t){
+          pdfSickDaySet.add(key);
+          if(isWorkday(cur2,wpw)&&!holidayMap[key])pdfSickWorkDaySet.add(key);
+        }
+        cur2.setDate(cur2.getDate()+1);
+      }
+    });
+
+    const soll = isStunden ? null : getSoll(fromDate.getFullYear(), fromDate.getMonth(), u);
+    const nettoSoll = isStunden ? null : soll - vacDaysInPeriod*dailyMin - pdfSickWorkDaySet.size*dailyMin;
+    const diff = isStunden ? null : totalWorked - nettoSoll;
+    const remainingVacDays = (u.vacationDaysPerYear||0) - vacDaysInPeriod;
+    const allDays = [];
+    const cur = new Date(fromDate);
+    while(cur<=toDate){
+      const key=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+      allDays.push({key, date:new Date(cur)});
+      cur.setDate(cur.getDate()+1);
+    }
+
+    // PDF setup - Portrait A4
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, margin = 15;
+    const dark = [26, 26, 26];
+    const accent = [200, 169, 110];
+    const dim = [140, 135, 130];
+    const green = [90, 158, 111];
+    const red = [192, 80, 77];
+    let y = margin;
+
+    const addFooter = () => {};  // placeholder, handled at end
+
+    const checkNewPage = (needed=8) => {
+      if(y + needed > H - 20){
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    // ── TITEL ──
+    doc.setFontSize(22); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Marmotte', margin, y+8);
+    doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.setTextColor(...accent);
+    doc.text('Monatsbericht Zeiterfassung', margin, y+16);
+    y += 24;
+
+    // ── MITARBEITER INFO + ZUSAMMENFASSUNG (3 Spalten) ──
+    const c1=margin, c2=margin+60, c3=margin+125;
+    doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+    doc.text(`Name: ${name}`, c1, y);
+    doc.text(`Abteilung: ${(u.departments||[]).join(', ')||'—'}`, c2, y);
+    doc.text(`Personalnummer: ${u.personnelNumber||'—'}`, c3, y);
+    y += 7;
+    doc.text(`Periode: ${fromDate.toLocaleDateString('de-CH')} – ${toDate.toLocaleDateString('de-CH')}`, c1, y);
+    doc.text(`Anstellung: ${isStunden?'Stundenlöhner':'Festangestellt'} (${Number(u.employmentPercent)||0}%)`, c2, y);
+    y += 7;
+    if (!isStunden) {
+      doc.text(`Soll: ${minutesToHM(nettoSoll)}`, c1, y);
+      doc.text(`Gearbeitet: ${minutesToHM(totalWorked)}`, c2, y);
+      const diffColor = diff>=0 ? green : red;
+      doc.setTextColor(...diffColor);
+      doc.text(`Differenz: ${diff>=0?'+':''}${minutesToHM(diff)}`, c3, y);
+      doc.setTextColor(...dark);
+      y += 7;
+      doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, c1, y);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, c2, y);
+      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, c3, y);
+      y += 10;
+    } else {
+      doc.text(`Total gearbeitet: ${minutesToHM(totalWorked)}`, c1, y);
+      y += 7;
+      doc.text(`Feriensaldo alt: ${u.vacationDaysPerYear||0} Tage`, c1, y);
+      doc.text(`Ferientage bezogen: ${vacDaysInPeriod} Tage`, c2, y);
+      doc.text(`Feriensaldo neu: ${remainingVacDays} Tage`, c3, y);
+      y += 10;
+    }
+
+    // ── TRENNLINIE ──
+    doc.setDrawColor(...accent); doc.setLineWidth(0.4);
+    doc.line(margin, y, W-margin, y); y += 6;
+
+    // ── TABELLEN-HEADER ──
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    const col = {
+      date: margin,
+      von: margin+38,
+      pauseVon: margin+60,
+      pauseBis: margin+85,
+      bis: margin+110,
+      worked: W-margin
+    };
+    doc.text('Datum', col.date, y);
+    doc.text('Von', col.von, y);
+    doc.text('Pause von', col.pauseVon, y);
+    doc.text('Pause bis', col.pauseBis, y);
+    doc.text('Bis', col.bis, y);
+    doc.text('Gearbeitet', col.worked, y, {align:'right'});
+    y += 4;
+    doc.setDrawColor(200,195,190); doc.setLineWidth(0.2);
+    doc.line(margin, y, W-margin, y); y += 5;
+
+    // ── TABELLENZEILEN ──
+    allDays.forEach((dayObj, i) => {
+      checkNewPage(7);
+      const {key, date} = dayObj;
+      const ds = date.toLocaleDateString('de-CH', {weekday:'short', day:'2-digit', month:'2-digit', year:'numeric'});
+      if(i%2===0){doc.setFillColor(248,246,243);doc.rect(margin,y-4,W-2*margin,7,'F');}
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dark);
+
+      if(entryMap[key]){
+        const e=entryMap[key], w=calcWorked(e);
+        doc.text(ds, col.date, y);
+        doc.text(minToStr(e.startMin)||'—', col.von, y);
+        doc.text(e.pauseStartMin ? minToStr(e.pauseStartMin) : '—', col.pauseVon, y);
+        doc.text(e.pauseEndMin ? minToStr(e.pauseEndMin) : '—', col.pauseBis, y);
+        doc.text(minToStr(e.endMin)||'—', col.bis, y);
+        doc.setFont('helvetica','bold');
+        doc.text(minutesToHM(w), col.worked, y, {align:'right'});
+        doc.setFont('helvetica','normal');
+      } else if(holidayMap[key]){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...accent);
+        doc.text(`Feiertag: ${holidayMap[key]}`, col.von, y);
+        doc.setTextColor(...dark);
+      } else if(pdfSickDaySet.has(key)){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...red);
+        doc.text('Krank', col.von, y);
+        doc.setTextColor(...dark);
+      } else if(vacDaySet.has(key)){
+        doc.text(ds, col.date, y);
+        doc.setTextColor(...green);
+        doc.text('Ferien bezogen', col.von, y);
+        doc.setTextColor(...dark);
+      } else {
+        doc.setTextColor(...dim);
+        doc.text(ds, col.date, y);
+        doc.text('Frei', col.von, y);
+        doc.setTextColor(...dark);
+      }
+      y += 7;
+    });
+
+    // ── TOTAL ──
+    checkNewPage(10);
+    doc.setDrawColor(...accent); doc.setLineWidth(0.4);
+    doc.line(margin, y, W-margin, y); y += 5;
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...dark);
+    doc.text('Total gearbeitet:', margin, y);
+    doc.text(minutesToHM(totalWorked), col.worked, y, {align:'right'});
+    y += 20;
+
+    // ── UNTERSCHRIFTEN ──
+    checkNewPage(25);
+    const sigW = (W - 2*margin - 15) / 2;
+    doc.setDrawColor(...dark); doc.setLineWidth(0.3);
+    doc.line(margin, y, margin+sigW, y);
+    doc.line(W-margin-sigW, y, W-margin, y);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
+    doc.text('Arbeitgeber: Unterschrift / Datum', margin, y+5);
+    doc.text('Arbeitnehmer: Unterschrift / Datum', W-margin-sigW, y+5);
+
+    // ── FOOTER (alle Seiten) ──
+    const total = doc.getNumberOfPages();
+    for(let p=1;p<=total;p++){
+      doc.setPage(p);
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(...dim);
+      doc.text(`Seite ${p} von ${total}`, W/2, H-8, {align:'center'});
+    }
+
+    const monthNameFile = fromDate.toLocaleDateString('de-CH', {month:'long'});
+    const yearFile = fromDate.getFullYear();
+    const safeName = name.replace(/ /g,'_');
+    doc.save(`${safeName}_Stundenabrechnung_${monthNameFile}_${yearFile}.pdf`);
+  };
+
+  document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')window.doLogin();});
+</script>
+</body>
+</html>
