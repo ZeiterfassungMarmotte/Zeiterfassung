@@ -278,9 +278,9 @@
   <div class="page" id="page-schedule">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
       <h2 style="font-size:18px;font-weight:600;" id="schedule-week-label">Arbeitsplan</h2>
-      <div style="display:flex;gap:8px;">
-        <button class="month-nav" style="width:32px;height:32px;" onclick="changeScheduleWeek(-1)">‹</button>
-        <button class="month-nav" style="width:32px;height:32px;" onclick="changeScheduleWeek(1)">›</button>
+      <div class="month-nav">
+        <button onclick="changeScheduleWeek(-1)">‹</button>
+        <button onclick="changeScheduleWeek(1)">›</button>
       </div>
     </div>
     <div id="schedule-content"><div class="empty-state">Lade...</div></div>
@@ -394,9 +394,9 @@
     <div class="admin-panel" id="panel-schedule-admin">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <h2 style="font-size:18px;font-weight:600;" id="admin-schedule-week-label">Arbeitsplan</h2>
-        <div style="display:flex;gap:8px;">
-          <button class="month-nav" style="width:32px;height:32px;" onclick="changeAdminScheduleWeek(-1)">‹</button>
-          <button class="month-nav" style="width:32px;height:32px;" onclick="changeAdminScheduleWeek(1)">›</button>
+        <div class="month-nav">
+          <button onclick="changeAdminScheduleWeek(-1)">‹</button>
+          <button onclick="changeAdminScheduleWeek(1)">›</button>
         </div>
       </div>
       <div class="filter-bar" style="margin-bottom:12px;">
@@ -1139,6 +1139,12 @@
     const fromKey = dateKey(days[0]), toKey = dateKey(days[6]);
     const content = document.getElementById('schedule-content');
     content.innerHTML = '<div class="empty-state">Lade...</div>';
+
+    // Ensure allUsers is loaded (needed to show colleague names)
+    if (!allUsers || allUsers.length === 0) {
+      const usnap = await getDocs(collection(db,'users'));
+      allUsers = usnap.docs.map(d=>({id:d.id,...d.data()}));
+    }
 
     // Get employee's departments
     const myDepts = currentProfile?.departments || [];
