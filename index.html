@@ -18,6 +18,7 @@
       --bg: #1a1a1a; --surface: #252525; --surface2: #2e2e2e;
       --border: #3a3a3a; --accent: #c8a96e;
       --green: #5a9e6f; --red: #c0504d; --yellow: #d4a843;
+      --blue: #5a85c8; --purple: #9c6fc7; --grey: #8d8d8d; --anthrazit: #5a5d63;
       --text: #f0ece4; --text-dim: #9a9590; --radius: 12px;
       --font: 'Century Gothic', 'CenturyGothic', 'AppleGothic', sans-serif;
     }
@@ -167,13 +168,27 @@
     .holiday-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
     /* LIVE */
-    .live-stamp-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
-    .live-stamp-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .live-stamp-detail { font-size: 12px; color: var(--text-dim); }
-    .live-stamp-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
-    .live-stamp-badge.in { background: rgba(90,158,111,0.2); color: var(--green); }
-    .live-stamp-badge.pause { background: rgba(212,168,67,0.2); color: var(--yellow); }
-    .live-stamp-badge.out { background: rgba(192,80,77,0.15); color: var(--red); }
+    .live-stamp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (min-width: 700px) { .live-stamp-grid { grid-template-columns: repeat(3, 1fr); } }
+    .live-stamp-box { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-height: 84px; }
+    .live-stamp-icon { font-size: 18px; }
+    .live-stamp-name { font-size: 13px; font-weight: 600; line-height: 1.25; }
+    .live-stamp-detail { font-size: 11px; color: var(--text-dim); }
+    .live-stamp-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
+    .live-stamp-box.arbeiten { border-left-color: var(--green); }
+    .live-stamp-box.pause { border-left-color: var(--red); }
+    .live-stamp-box.ferien { border-left-color: var(--blue); }
+    .live-stamp-box.krank { border-left-color: var(--purple); }
+    .live-stamp-box.frei { border-left-color: var(--grey); }
+    .live-stamp-box.feierabend { border-left-color: var(--anthrazit); }
+    .live-stamp-box.ausstehend { border-left-color: var(--yellow); }
+    .live-stamp-badge.arbeiten { background: rgba(90,158,111,0.2); color: var(--green); }
+    .live-stamp-badge.pause { background: rgba(192,80,77,0.2); color: var(--red); }
+    .live-stamp-badge.ferien { background: rgba(90,133,200,0.2); color: var(--blue); }
+    .live-stamp-badge.krank { background: rgba(156,111,199,0.2); color: var(--purple); }
+    .live-stamp-badge.frei { background: rgba(141,141,141,0.2); color: var(--grey); }
+    .live-stamp-badge.feierabend { background: rgba(90,93,99,0.3); color: #cfd1d4; }
+    .live-stamp-badge.ausstehend { background: rgba(212,168,67,0.2); color: var(--yellow); }
 
     /* MODAL */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
@@ -398,7 +413,7 @@
             <option>Bäckerei</option><option>Laden & Tearoom</option><option>Dorfladen</option>
           </select>
         </div>
-        <div id="live-stamp-list"><div class="empty-state">Lade...</div></div>
+        <div id="live-stamp-list" class="live-stamp-grid"><div class="empty-state">Lade...</div></div>
       </div>
     </div>
 
@@ -2192,23 +2207,35 @@
 
   // ── ADMIN: LIVE ──
   async function loadLiveStamps() {
-    const key=todayKey(), deptFilter=document.getElementById('live-filter-dept')?.value||'';
+    const key=todayKey(), todayDate=new Date(), deptFilter=document.getElementById('live-filter-dept')?.value||'';
     const list=document.getElementById('live-stamp-list'); list.innerHTML='<div class="empty-state">Lade...</div>';
     if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
     let users=allUsers.filter(u=>u.active!==false);
     if(deptFilter)users=users.filter(u=>(u.departments||[]).includes(deptFilter));
-    const snap=await getDocs(query(collection(db,'timeEntries'),where('date','==',key)));
+    const [snap,vacSnap,sickSnap]=await Promise.all([
+      getDocs(query(collection(db,'timeEntries'),where('date','==',key))),
+      getDocs(query(collection(db,'vacations'),where('status','==','approved'))),
+      getDocs(collection(db,'sickDays'))
+    ]);
     const todayE=snap.docs.map(d=>d.data());
+    const allVac=vacSnap.docs.map(d=>d.data());
+    const allSick=sickSnap.docs.map(d=>d.data());
     list.innerHTML='';
     users.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(u=>{
+      let label,cls,icon,det='';
+      const sick=allSick.find(s=>s.uid===u.id&&key>=s.from&&key<=s.to);
+      const vac=allVac.find(v=>v.uid===u.id&&key>=v.from&&key<=v.to);
       const e=todayE.find(x=>x.uid===u.id);
-      let label='Nicht eingestempelt',cls='out',det='';
-      if(e){if(e.endMin){label='Ausgestempelt';cls='out';det=`${minToStr(e.startMin)} – ${minToStr(e.endMin)}`;}
-        else if(e.pauseStartMin&&!e.pauseEndMin){label='Pause';cls='pause';det=`seit ${minToStr(e.pauseStartMin)}`;}
-        else{label='Eingestempelt';cls='in';det=`seit ${minToStr(e.startMin)}${e.department?' · '+e.department:''}`;}
-      }
-      const item=document.createElement('div');item.className='live-stamp-item';
-      item.innerHTML=`<div class="live-stamp-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}<span class="live-stamp-badge ${cls}">${label}</span></div>${det?`<div class="live-stamp-detail">${det}</div>`:''}`; list.appendChild(item);
+      if(sick){label='Krank';cls='krank';icon='🤒';}
+      else if(vac){label='Ferien';cls='ferien';icon='🌴';}
+      else if(!isWorkday(todayDate,u.workdaysPerWeek)){label='Frei';cls='frei';icon='😴';}
+      else if(e&&e.endMin){label='Feierabend';cls='feierabend';icon='🌙';det=`${minToStr(e.startMin)} – ${minToStr(e.endMin)}`;}
+      else if(e&&e.pauseStartMin&&!e.pauseEndMin){label='Pause';cls='pause';icon='☕';det=`seit ${minToStr(e.pauseStartMin)}`;}
+      else if(e){label='Arbeiten';cls='arbeiten';icon='🟢';det=`seit ${minToStr(e.startMin)}${e.department?' · '+e.department:''}`;}
+      else{label='Nicht eingestempelt';cls='ausstehend';icon='⏳';}
+      const box=document.createElement('div');box.className=`live-stamp-box ${cls}`;
+      box.innerHTML=`<div class="live-stamp-icon">${icon}</div><div class="live-stamp-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}</div><span class="live-stamp-badge ${cls}">${label}</span>${det?`<div class="live-stamp-detail">${det}</div>`:''}`;
+      list.appendChild(box);
     });
     if(!users.length)list.innerHTML='<div class="empty-state">Keine Mitarbeitenden gefunden</div>';
   }
