@@ -2213,27 +2213,31 @@
     if(allUsers.length===0){const s=await getDocs(collection(db,'users'));allUsers=s.docs.map(d=>({id:d.id,...d.data()}));}
     let users=allUsers.filter(u=>u.active!==false);
     if(deptFilter)users=users.filter(u=>(u.departments||[]).includes(deptFilter));
-    const [snap,vacSnap,sickSnap]=await Promise.all([
+    const [snap,vacSnap,sickSnap,shiftSnap]=await Promise.all([
       getDocs(query(collection(db,'timeEntries'),where('date','==',key))),
       getDocs(query(collection(db,'vacations'),where('status','==','approved'))),
-      getDocs(collection(db,'sickDays'))
+      getDocs(collection(db,'sickDays')),
+      getDocs(query(collection(db,'shifts'),where('date','==',key)))
     ]);
     const todayE=snap.docs.map(d=>d.data());
     const allVac=vacSnap.docs.map(d=>d.data());
     const allSick=sickSnap.docs.map(d=>d.data());
+    const todayShifts=shiftSnap.docs.map(d=>d.data());
     list.innerHTML='';
     users.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(u=>{
       let label,cls,icon,det='';
       const sick=allSick.find(s=>s.uid===u.id&&key>=s.from&&key<=s.to);
       const vac=allVac.find(v=>v.uid===u.id&&key>=v.from&&key<=v.to);
       const e=todayE.find(x=>x.uid===u.id);
+      const hasShift=todayShifts.some(s=>s.uid===u.id);
+      const workday=hasShift;
       if(sick){label='Krank';cls='krank';icon='🤒';}
       else if(vac){label='Ferien';cls='ferien';icon='🌴';}
-      else if(!isWorkday(todayDate,u.workdaysPerWeek)){label='Frei';cls='frei';icon='😴';}
+      else if(!workday){label='Frei';cls='frei';icon='😴';}
       else if(e&&e.endMin){label='Feierabend';cls='feierabend';icon='🌙';det=`${minToStr(e.startMin)} – ${minToStr(e.endMin)}`;}
       else if(e&&e.pauseStartMin&&!e.pauseEndMin){label='Pause';cls='pause';icon='☕';det=`seit ${minToStr(e.pauseStartMin)}`;}
       else if(e){label='Arbeiten';cls='arbeiten';icon='🟢';det=`seit ${minToStr(e.startMin)}${e.department?' · '+e.department:''}`;}
-      else{label='Nicht eingestempelt';cls='ausstehend';icon='⏳';}
+      else{label='Nicht eingestempelt';cls='ausstehend';icon='🚗';}
       const box=document.createElement('div');box.className=`live-stamp-box ${cls}`;
       box.innerHTML=`<div class="live-stamp-head"><span class="live-stamp-icon">${icon}</span><span class="live-stamp-name">${u.name}</span></div><span class="live-stamp-badge ${cls}">${label}</span>${det?`<div class="live-stamp-detail">${det}</div>`:''}`;
       list.appendChild(box);
