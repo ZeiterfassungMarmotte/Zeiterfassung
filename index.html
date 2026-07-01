@@ -170,18 +170,18 @@
     /* LIVE */
     .live-stamp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     @media (min-width: 700px) { .live-stamp-grid { grid-template-columns: repeat(3, 1fr); } }
-    .live-stamp-box { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-height: 84px; }
+    .live-stamp-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-height: 84px; }
     .live-stamp-icon { font-size: 18px; }
     .live-stamp-name { font-size: 13px; font-weight: 600; line-height: 1.25; }
     .live-stamp-detail { font-size: 11px; color: var(--text-dim); }
     .live-stamp-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
-    .live-stamp-box.arbeiten { border-left-color: var(--green); }
-    .live-stamp-box.pause { border-left-color: var(--red); }
-    .live-stamp-box.ferien { border-left-color: var(--blue); }
-    .live-stamp-box.krank { border-left-color: var(--purple); }
-    .live-stamp-box.frei { border-left-color: var(--grey); }
-    .live-stamp-box.feierabend { border-left-color: var(--anthrazit); }
-    .live-stamp-box.ausstehend { border-left-color: var(--yellow); }
+    .live-stamp-box.arbeiten { border-color: var(--green); background: rgba(90,158,111,0.08); }
+    .live-stamp-box.pause { border-color: var(--red); background: rgba(192,80,77,0.08); }
+    .live-stamp-box.ferien { border-color: var(--blue); background: rgba(90,133,200,0.08); }
+    .live-stamp-box.krank { border-color: var(--purple); background: rgba(156,111,199,0.08); }
+    .live-stamp-box.frei { border-color: var(--grey); background: rgba(141,141,141,0.08); }
+    .live-stamp-box.feierabend { border-color: var(--anthrazit); background: rgba(90,93,99,0.12); }
+    .live-stamp-box.ausstehend { border-color: var(--yellow); background: rgba(212,168,67,0.08); }
     .live-stamp-badge.arbeiten { background: rgba(90,158,111,0.2); color: var(--green); }
     .live-stamp-badge.pause { background: rgba(192,80,77,0.2); color: var(--red); }
     .live-stamp-badge.ferien { background: rgba(90,133,200,0.2); color: var(--blue); }
