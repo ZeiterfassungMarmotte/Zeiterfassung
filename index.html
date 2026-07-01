@@ -219,6 +219,27 @@
   </div>
 </div>
 
+<!-- ERZWUNGENE PASSWORT-ÄNDERUNG (erstmaliger Login) -->
+<div id="force-pw-screen" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:32px;">
+  <div class="logo"><h1>Marmotte</h1></div>
+  <div class="auth-card">
+    <h2>Neues Passwort wählen</h2>
+    <div style="font-size:13px;color:var(--text-dim);margin-top:-8px;">Bevor du die App nutzen kannst, musst du dein temporäres Passwort ändern.</div>
+    <div class="form-group"><label>Neues Passwort</label><input type="password" id="force-pw-new" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist()" /></div>
+    <div class="form-group"><label>Passwort bestätigen</label><input type="password" id="force-pw-confirm" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist()" /></div>
+    <ul id="pw-checklist" style="list-style:none;padding:0;margin:0;font-size:13px;display:flex;flex-direction:column;gap:4px;">
+      <li id="pwc-length" style="color:var(--text-dim);">○ Mindestens 8 Zeichen</li>
+      <li id="pwc-upper" style="color:var(--text-dim);">○ Ein Großbuchstabe</li>
+      <li id="pwc-lower" style="color:var(--text-dim);">○ Ein Kleinbuchstabe</li>
+      <li id="pwc-number" style="color:var(--text-dim);">○ Eine Ziffer</li>
+      <li id="pwc-special" style="color:var(--text-dim);">○ Ein Sonderzeichen</li>
+      <li id="pwc-match" style="color:var(--text-dim);">○ Passwörter stimmen überein</li>
+    </ul>
+    <div id="force-pw-error" class="error-msg"></div>
+    <button class="btn btn-primary" onclick="saveForcedPassword()">Passwort speichern</button>
+  </div>
+</div>
+
 <!-- APP -->
 <div id="app">
   <header>
@@ -709,7 +730,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail }
+  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, updatePassword }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -816,6 +837,13 @@
       currentUser = user;
       const snap = await getDoc(doc(db,'users',user.uid));
       currentProfile = snap.exists() ? snap.data() : {name:user.email,role:'employee',weeklyHours:42,workdaysPerWeek:5,vacationDaysPerYear:20,departments:[]};
+      if (currentProfile.mustChangePassword) {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('force-pw-screen').style.display = 'flex';
+        return;
+      }
+      document.getElementById('force-pw-screen').style.display = 'none';
       document.getElementById('header-name').textContent = currentProfile.name || user.email;
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
@@ -841,6 +869,7 @@
       currentUser=null;currentProfile=null;
       document.getElementById('auth-screen').style.display='flex';
       document.getElementById('app').style.display='none';
+      document.getElementById('force-pw-screen').style.display='none';
     }
   });
 
@@ -853,6 +882,48 @@
       msg.style.color='var(--green)'; msg.textContent='✓ E-Mail wurde verschickt!';
     } catch {
       msg.style.color='var(--red)'; msg.textContent='E-Mail nicht gefunden.';
+    }
+  };
+
+  // ── ERZWUNGENE PASSWORT-ÄNDERUNG (erstmaliger Login) ──
+  function pwChecklistState() {
+    const pw = document.getElementById('force-pw-new').value;
+    const confirm = document.getElementById('force-pw-confirm').value;
+    return {
+      length: pw.length >= 8,
+      upper: /[A-Z]/.test(pw),
+      lower: /[a-z]/.test(pw),
+      number: /[0-9]/.test(pw),
+      special: /[^A-Za-z0-9]/.test(pw),
+      match: pw.length > 0 && pw === confirm
+    };
+  }
+  window.updatePwChecklist = () => {
+    const s = pwChecklistState();
+    [['pwc-length','length'],['pwc-upper','upper'],['pwc-lower','lower'],['pwc-number','number'],['pwc-special','special'],['pwc-match','match']].forEach(([id,key])=>{
+      const el = document.getElementById(id);
+      const ok = s[key];
+      el.style.color = ok ? 'var(--green)' : 'var(--text-dim)';
+      el.textContent = (ok?'✓ ':'○ ') + el.textContent.slice(2);
+    });
+  };
+  window.saveForcedPassword = async () => {
+    const err = document.getElementById('force-pw-error');
+    err.textContent = '';
+    const s = pwChecklistState();
+    if (!(s.length && s.upper && s.lower && s.number && s.special && s.match)) {
+      err.textContent = 'Bitte alle Anforderungen der Checkliste erfüllen.';
+      return;
+    }
+    const newPw = document.getElementById('force-pw-new').value;
+    try {
+      await updatePassword(auth.currentUser, newPw);
+      await updateDoc(doc(db,'users',auth.currentUser.uid), {mustChangePassword:false});
+      location.reload();
+    } catch (e) {
+      err.textContent = e.code === 'auth/password-does-not-meet-requirements'
+        ? 'Passwort erfüllt die Anforderungen nicht.'
+        : 'Fehler: ' + e.message;
     }
   };
 
@@ -1985,6 +2056,7 @@
       </div>
       <div class="user-actions">
         <button class="btn btn-secondary btn-sm" onclick="openUserEdit('${u.id}')">✎</button>
+        <button class="btn btn-secondary btn-sm" onclick="resetUserPassword('${u.id}','${u.email}')">🔑</button>
         <button class="btn ${inactive?'btn-primary':'btn-danger'} btn-sm" onclick="toggleUserActive('${u.id}',${inactive})">${inactive?'Aktivieren':'Deaktivieren'}</button>
       </div>`;
       list.appendChild(item);
@@ -2036,6 +2108,18 @@
     closeModal('user-edit-modal'); loadAdminUsers();
   };
   window.toggleUserActive=async(uid,inactive)=>{await updateDoc(doc(db,'users',uid),{active:inactive});loadAdminUsers();};
+  window.resetUserPassword = async (uid, email) => {
+    if (!confirm(`Passwort für ${email} wirklich zurücksetzen? Der Mitarbeiter erhält eine E-Mail zum Neu-Setzen.`)) return;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      await updateDoc(doc(db,'users',uid), {mustChangePassword:true});
+      const suc=document.getElementById('admin-success');
+      suc.textContent = `✓ Reset-E-Mail an ${email} verschickt.`; setTimeout(()=>suc.textContent='',3000);
+    } catch (e) {
+      const err=document.getElementById('admin-error');
+      err.textContent = 'Fehler: ' + e.message;
+    }
+  };
 
   // ── ADMIN: ÜBERSICHT MIT FILTER ──
   function initAdminFilters() {
@@ -2295,7 +2379,7 @@
     if(!name||!email||!pass||!workdaysPerWeek||(!isStunden&&!hours)){err.textContent='Bitte alle Pflichtfelder ausfüllen (inkl. Pensum/Arbeitstage pro Woche).';return;}
     try{
       const cred=await createUserWithEmailAndPassword(auth,email,pass);
-      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,canUseVacation,employmentType:empType});
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,canUseVacation,employmentType:empType,mustChangePassword:true});
       ['new-name','new-personnel','new-email','new-pass','new-percent','new-workdays','new-hours','new-vacation-days','new-startdate'].forEach(id=>document.getElementById(id).value='');
       document.querySelectorAll('#new-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.dept-check').classList.remove('checked');});
       document.getElementById('new-can-vacation').checked=true;
