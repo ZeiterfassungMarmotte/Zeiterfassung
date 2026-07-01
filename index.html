@@ -587,10 +587,6 @@
               <option value="admin">Admin</option>
             </select>
           </div>
-          <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
-            <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
-            <input type="checkbox" id="new-can-vacation" checked style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
-          </div>
           <div id="admin-error" class="error-msg" style="margin-bottom:8px;"></div>
           <div id="admin-success" class="success-msg" style="margin-bottom:8px;"></div>
           <button class="btn btn-primary" onclick="createUser()">Mitarbeitenden erstellen</button>
@@ -746,10 +742,6 @@
       </select>
     </div>
     <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
-      <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
-      <input type="checkbox" id="ue-can-vacation" style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
-    </div>
-    <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
       <label style="margin:0;color:var(--text);">📦 Bestellungen-Bereich (Bäckerei)</label>
       <input type="checkbox" id="ue-can-orders" style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
     </div>
@@ -816,7 +808,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc }
+  import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc, deleteField }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -1222,9 +1214,8 @@
       document.getElementById('app').style.display = 'flex';
       // Show schedule tab for all users
       document.getElementById('nav-schedule').style.display = 'block';
-      // Show/hide vacation tab based on profile
-      document.getElementById('nav-vacation').style.display =
-        (currentProfile.canUseVacation !== false) ? 'block' : 'none';
+      // Ferien-Tab für alle Mitarbeitenden sichtbar
+      document.getElementById('nav-vacation').style.display = 'block';
       // Show/hide Bestellungen tab
       document.getElementById('nav-orders').style.display =
         canAccessOrders() ? 'block' : 'none';
@@ -2204,9 +2195,9 @@
     const oldVacCard = document.getElementById('feriensaldo-card');
     if (oldVacCard) oldVacCard.remove();
 
-    // Feriensaldo (alle mit Startdatum & canUseVacation) - voller (anteiliger) Jahresanspruch ab erstem Monat des jeweiligen Jahres,
+    // Feriensaldo (alle mit Startdatum) - voller (anteiliger) Jahresanspruch ab erstem Monat des jeweiligen Jahres,
     // läuft über Jahre kumuliert weiter (unbegrenzter Übertrag), wird am Austrittsdatum eingefroren
-    if (currentProfile?.startDate && currentProfile.canUseVacation !== false) {
+    if (currentProfile?.startDate) {
       const [sy, sm] = currentProfile.startDate.split('-').map(Number);
       const startMonthIdx = sy*12 + (sm-1);
       const curMonthIdx = overviewYear*12 + overviewMonth;
@@ -2500,7 +2491,6 @@
     document.getElementById('ue-startdate').value=u.startDate||'';
     document.getElementById('ue-enddate').value=u.endDate||'';
     document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
-    document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
     document.getElementById('ue-can-orders').checked = u.canViewOrders === true;
     document.getElementById('ue-role-group').style.display = isAdmin() ? 'block' : 'none';
     if(document.getElementById('ue-role'))document.getElementById('ue-role').value = u.role || 'employee';
@@ -2511,7 +2501,6 @@
   window.saveUserEdit = async () => {
     const uid=document.getElementById('ue-uid').value;
     const depts=[...document.querySelectorAll('#ue-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
-    const canUseVacation=document.getElementById('ue-can-vacation').checked;
     const canViewOrders=document.getElementById('ue-can-orders').checked;
     const empType=document.querySelector('input[name="ue-emp-type"]:checked').value;
     const isStunden = empType === 'stundenlöhner';
@@ -2524,7 +2513,7 @@
       vacationDaysPerYear: Number(document.getElementById('ue-vacation').value),
       startDate: document.getElementById('ue-startdate').value || null,
       endDate: document.getElementById('ue-enddate').value || null,
-      departments:depts, canUseVacation: canUseVacation, canViewOrders: canViewOrders,
+      departments:depts, canUseVacation: deleteField(), canViewOrders: canViewOrders,
       employmentType:empType
     };
     if (isAdmin() && document.getElementById('ue-role')) updateData.role = document.getElementById('ue-role').value;
@@ -2796,17 +2785,15 @@
     const vac = Number(document.getElementById('new-vacation-days').value);
     const startDate = document.getElementById('new-startdate').value || null;
     const depts=[...document.querySelectorAll('#new-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
-    const canUseVacation = document.getElementById('new-can-vacation').checked;
     const role = isAdmin() ? document.getElementById('new-role').value : 'employee';
     const err=document.getElementById('admin-error'), suc=document.getElementById('admin-success');
     err.textContent='';suc.textContent='';
     if(!name||!email||!pass||!workdaysPerWeek||(!isStunden&&!hours)){err.textContent='Bitte alle Pflichtfelder ausfüllen (inkl. Pensum/Arbeitstage pro Woche).';return;}
     try{
       const cred=await createUserWithEmailAndPassword(auth,email,pass);
-      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,canUseVacation,employmentType:empType,mustChangePassword:true});
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,personnelNumber:personnel,employmentPercent:percent,workdaysPerWeek,weeklyHours:hours,vacationDaysPerYear:vac,startDate,role,active:true,departments:depts,employmentType:empType,mustChangePassword:true});
       ['new-name','new-personnel','new-email','new-pass','new-percent','new-workdays','new-hours','new-vacation-days','new-startdate'].forEach(id=>document.getElementById(id).value='');
       document.querySelectorAll('#new-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.closest('.dept-check').classList.remove('checked');});
-      document.getElementById('new-can-vacation').checked=true;
       if(document.getElementById('new-role'))document.getElementById('new-role').value='employee';
       document.querySelector('input[name="new-emp-type"][value="festangestellt"]').checked=true;
       window.toggleNewEmpType();
