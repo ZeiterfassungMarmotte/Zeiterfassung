@@ -225,8 +225,8 @@
   <div class="auth-card">
     <h2>Neues Passwort wählen</h2>
     <div style="font-size:13px;color:var(--text-dim);margin-top:-8px;">Bevor du die App nutzen kannst, musst du dein temporäres Passwort ändern.</div>
-    <div class="form-group"><label>Neues Passwort</label><input type="password" id="force-pw-new" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist()" /></div>
-    <div class="form-group"><label>Passwort bestätigen</label><input type="password" id="force-pw-confirm" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist()" /></div>
+    <div class="form-group"><label>Neues Passwort</label><input type="password" id="force-pw-new" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist('pwc','force-pw-new','force-pw-confirm')" /></div>
+    <div class="form-group"><label>Passwort bestätigen</label><input type="password" id="force-pw-confirm" placeholder="••••••••" autocomplete="new-password" oninput="updatePwChecklist('pwc','force-pw-new','force-pw-confirm')" /></div>
     <ul id="pw-checklist" style="list-style:none;padding:0;margin:0;font-size:13px;display:flex;flex-direction:column;gap:4px;">
       <li id="pwc-length" style="color:var(--text-dim);">○ Mindestens 8 Zeichen</li>
       <li id="pwc-upper" style="color:var(--text-dim);">○ Ein Großbuchstabe</li>
@@ -246,7 +246,13 @@
     <span class="title">Marmotte</span>
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:13px;color:var(--text-dim);" id="header-name"></span>
-      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+      <div style="position:relative;">
+        <button class="logout-btn" onclick="toggleAccountMenu()">⋮ Konto</button>
+        <div id="account-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:50;min-width:170px;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+          <button style="display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;color:var(--text);font-size:13px;cursor:pointer;" onclick="openOwnPasswordModal()">🔑 Passwort ändern</button>
+          <button style="display:block;width:100%;text-align:left;padding:11px 14px;background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;border-top:1px solid var(--border);" onclick="doLogout()">Abmelden</button>
+        </div>
+      </div>
     </div>
   </header>
   <nav>
@@ -699,6 +705,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="own-pw-modal">
+  <div class="modal">
+    <h3>Passwort ändern</h3>
+    <div class="form-group"><label>Aktuelles Passwort</label><input type="password" id="own-pw-current" autocomplete="current-password" /></div>
+    <div class="form-group"><label>Neues Passwort</label><input type="password" id="own-pw-new" autocomplete="new-password" oninput="updatePwChecklist('opwc','own-pw-new','own-pw-confirm')" /></div>
+    <div class="form-group"><label>Neues Passwort bestätigen</label><input type="password" id="own-pw-confirm" autocomplete="new-password" oninput="updatePwChecklist('opwc','own-pw-new','own-pw-confirm')" /></div>
+    <ul id="opwc-list" style="list-style:none;padding:0;margin:0 0 14px;font-size:13px;display:flex;flex-direction:column;gap:4px;">
+      <li id="opwc-length" style="color:var(--text-dim);">○ Mindestens 8 Zeichen</li>
+      <li id="opwc-upper" style="color:var(--text-dim);">○ Ein Großbuchstabe</li>
+      <li id="opwc-lower" style="color:var(--text-dim);">○ Ein Kleinbuchstabe</li>
+      <li id="opwc-number" style="color:var(--text-dim);">○ Eine Ziffer</li>
+      <li id="opwc-special" style="color:var(--text-dim);">○ Ein Sonderzeichen</li>
+      <li id="opwc-match" style="color:var(--text-dim);">○ Passwörter stimmen überein</li>
+    </ul>
+    <div id="own-pw-error" class="error-msg"></div>
+    <div id="own-pw-success" class="success-msg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeOwnPasswordModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveOwnPassword()">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Admin bearbeitet/erstellt Eintrag -->
 <div class="modal-overlay" id="admin-entry-modal">
   <div class="modal">
@@ -730,7 +759,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, updatePassword }
+  import { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, getDocs, collection, query, where, orderBy, deleteDoc, updateDoc }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -886,9 +915,9 @@
   };
 
   // ── ERZWUNGENE PASSWORT-ÄNDERUNG (erstmaliger Login) ──
-  function pwChecklistState() {
-    const pw = document.getElementById('force-pw-new').value;
-    const confirm = document.getElementById('force-pw-confirm').value;
+  function pwChecklistState(newFieldId, confirmFieldId) {
+    const pw = document.getElementById(newFieldId).value;
+    const confirm = document.getElementById(confirmFieldId).value;
     return {
       length: pw.length >= 8,
       upper: /[A-Z]/.test(pw),
@@ -898,19 +927,20 @@
       match: pw.length > 0 && pw === confirm
     };
   }
-  window.updatePwChecklist = () => {
-    const s = pwChecklistState();
-    [['pwc-length','length'],['pwc-upper','upper'],['pwc-lower','lower'],['pwc-number','number'],['pwc-special','special'],['pwc-match','match']].forEach(([id,key])=>{
-      const el = document.getElementById(id);
+  window.updatePwChecklist = (prefix, newFieldId, confirmFieldId) => {
+    const s = pwChecklistState(newFieldId, confirmFieldId);
+    [['length','length'],['upper','upper'],['lower','lower'],['number','number'],['special','special'],['match','match']].forEach(([suffix,key])=>{
+      const el = document.getElementById(prefix+'-'+suffix);
       const ok = s[key];
       el.style.color = ok ? 'var(--green)' : 'var(--text-dim)';
       el.textContent = (ok?'✓ ':'○ ') + el.textContent.slice(2);
     });
+    return s;
   };
   window.saveForcedPassword = async () => {
     const err = document.getElementById('force-pw-error');
     err.textContent = '';
-    const s = pwChecklistState();
+    const s = pwChecklistState('force-pw-new','force-pw-confirm');
     if (!(s.length && s.upper && s.lower && s.number && s.special && s.match)) {
       err.textContent = 'Bitte alle Anforderungen der Checkliste erfüllen.';
       return;
@@ -924,6 +954,49 @@
       err.textContent = e.code === 'auth/password-does-not-meet-requirements'
         ? 'Passwort erfüllt die Anforderungen nicht.'
         : 'Fehler: ' + e.message;
+    }
+  };
+
+  // ── FREIWILLIGE PASSWORT-ÄNDERUNG (eingeloggter Nutzer) ──
+  window.toggleAccountMenu = () => {
+    const m = document.getElementById('account-menu');
+    m.style.display = m.style.display === 'none' ? 'block' : 'none';
+  };
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('account-menu');
+    if (!menu || menu.style.display === 'none') return;
+    if (!e.target.closest('#account-menu') && e.target.closest('.logout-btn') === null) menu.style.display = 'none';
+  });
+  window.openOwnPasswordModal = () => {
+    document.getElementById('account-menu').style.display = 'none';
+    ['own-pw-current','own-pw-new','own-pw-confirm'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('own-pw-error').textContent='';
+    document.getElementById('own-pw-success').textContent='';
+    updatePwChecklist('opwc','own-pw-new','own-pw-confirm');
+    document.getElementById('own-pw-modal').classList.add('open');
+  };
+  window.closeOwnPasswordModal = () => document.getElementById('own-pw-modal').classList.remove('open');
+  window.saveOwnPassword = async () => {
+    const err = document.getElementById('own-pw-error'), suc = document.getElementById('own-pw-success');
+    err.textContent=''; suc.textContent='';
+    const current = document.getElementById('own-pw-current').value;
+    const newPw = document.getElementById('own-pw-new').value;
+    if (!current) { err.textContent = 'Bitte aktuelles Passwort eingeben.'; return; }
+    const s = pwChecklistState('own-pw-new','own-pw-confirm');
+    if (!(s.length && s.upper && s.lower && s.number && s.special && s.match)) {
+      err.textContent = 'Bitte alle Anforderungen der Checkliste erfüllen.';
+      return;
+    }
+    try {
+      const cred = EmailAuthProvider.credential(auth.currentUser.email, current);
+      await reauthenticateWithCredential(auth.currentUser, cred);
+      await updatePassword(auth.currentUser, newPw);
+      suc.textContent = '✓ Passwort wurde geändert!';
+      setTimeout(()=>closeOwnPasswordModal(), 1500);
+    } catch (e) {
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') err.textContent = 'Aktuelles Passwort ist falsch.';
+      else if (e.code === 'auth/password-does-not-meet-requirements') err.textContent = 'Neues Passwort erfüllt die Anforderungen nicht.';
+      else err.textContent = 'Fehler: ' + e.message;
     }
   };
 
