@@ -171,7 +171,8 @@
     .live-stamp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     @media (min-width: 700px) { .live-stamp-grid { grid-template-columns: repeat(3, 1fr); } }
     .live-stamp-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-height: 84px; }
-    .live-stamp-icon { font-size: 18px; }
+    .live-stamp-head { display: flex; align-items: center; gap: 6px; }
+    .live-stamp-icon { font-size: 16px; }
     .live-stamp-name { font-size: 13px; font-weight: 600; line-height: 1.25; }
     .live-stamp-detail { font-size: 11px; color: var(--text-dim); }
     .live-stamp-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
@@ -2234,7 +2235,7 @@
       else if(e){label='Arbeiten';cls='arbeiten';icon='🟢';det=`seit ${minToStr(e.startMin)}${e.department?' · '+e.department:''}`;}
       else{label='Nicht eingestempelt';cls='ausstehend';icon='⏳';}
       const box=document.createElement('div');box.className=`live-stamp-box ${cls}`;
-      box.innerHTML=`<div class="live-stamp-icon">${icon}</div><div class="live-stamp-name">${u.personnelNumber?`[${u.personnelNumber}] `:''}${u.name}</div><span class="live-stamp-badge ${cls}">${label}</span>${det?`<div class="live-stamp-detail">${det}</div>`:''}`;
+      box.innerHTML=`<div class="live-stamp-head"><span class="live-stamp-icon">${icon}</span><span class="live-stamp-name">${u.name}</span></div><span class="live-stamp-badge ${cls}">${label}</span>${det?`<div class="live-stamp-detail">${det}</div>`:''}`;
       list.appendChild(box);
     });
     if(!users.length)list.innerHTML='<div class="empty-state">Keine Mitarbeitenden gefunden</div>';
