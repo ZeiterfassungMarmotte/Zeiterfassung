@@ -197,6 +197,22 @@
     .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 18px; }
     .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
     .modal-actions .btn { flex: 1; }
+
+    /* BESTELLUNGEN */
+    .order-cat-title { font-size: 13px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; margin: 18px 0 8px; }
+    .order-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+    .order-row .order-name { font-size: 14px; }
+    .order-row input[type=number] { width: 72px; text-align: center; }
+    .order-hint { font-size: 13px; color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+    .order-hint.locked { border-color: var(--yellow); color: var(--yellow); }
+    .order-view-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .order-view-item .qty { font-weight: 700; color: var(--accent); }
+    .article-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+    .article-row.inactive { opacity: 0.5; }
+    .article-row .art-actions { display: flex; gap: 6px; align-items: center; }
+    .article-row .art-toggle { font-size: 12px; padding: 3px 9px; border-radius: 14px; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--text-dim); }
+    .article-row .art-toggle.on { border-color: var(--green); color: var(--green); background: rgba(90,158,111,0.12); }
+    .article-row .art-del { background: none; border: none; color: var(--red); cursor: pointer; font-size: 15px; }
   </style>
 </head>
 <body>
@@ -260,6 +276,7 @@
     <button onclick="showPage('overview')" id="nav-overview">📊 Monate</button>
     <button onclick="showPage('vacation')" id="nav-vacation">🌴 Anträge</button>
     <button onclick="showPage('schedule')" id="nav-schedule" style="display:none">📋 Arbeitsplan</button>
+    <button onclick="showPage('orders')" id="nav-orders" style="display:none">📦 Bestellungen</button>
     <button onclick="showPage('admin')" id="nav-admin" style="display:none">⚙️ Admin</button>
   </nav>
 
@@ -348,6 +365,18 @@
     <div id="schedule-content"><div class="empty-state">Lade...</div></div>
   </div>
 
+  <!-- BESTELLUNGEN -->
+  <div class="page" id="page-orders">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="font-size:18px;font-weight:600;" id="orders-date-label">Bestellungen</h2>
+      <div class="month-nav">
+        <button onclick="changeOrdersDate(-1)">‹</button>
+        <button onclick="changeOrdersDate(1)" id="orders-next-btn">›</button>
+      </div>
+    </div>
+    <div id="orders-content"><div class="empty-state">Lade...</div></div>
+  </div>
+
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="admin-tabs">
@@ -359,6 +388,7 @@
       <button class="admin-tab" onclick="showAdminPanel('panel-requests',this)">🌴 Anträge <span id="requests-badge" style="display:none;background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;"></span></button>
       <button class="admin-tab" onclick="showAdminPanel('panel-schedule-admin',this)">📋 Arbeitsplan</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-sick',this)">🤒 Krank</button>
+      <button class="admin-tab" onclick="showAdminPanel('panel-articles',this)">📦 Bestellartikel</button>
       <button class="admin-tab" onclick="showAdminPanel('panel-new',this)">➕ Neu</button>
       <button class="admin-tab" id="admin-tab-settings" onclick="showAdminPanel('panel-settings',this)" style="display:none;">🔧 Grundeinstellungen</button>
     </div>
@@ -569,6 +599,27 @@
     </div>
 
     <!-- GRUNDEINSTELLUNGEN (nur Admin) -->
+    <div class="admin-panel" id="panel-articles">
+      <div class="admin-section">
+        <h3>Bestellartikel verwalten</h3>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Diese Artikel erscheinen im Bestellformular für Dorfladen und Laden &amp; Tearoom. Deaktivierte Artikel werden im Formular ausgeblendet, bleiben aber in bereits gespeicherten Bestellungen erhalten.</div>
+        <div class="status-card">
+          <div class="form-group"><label>Artikelname</label><input type="text" id="article-name" placeholder="z.B. Salamisandwich" /></div>
+          <div class="form-group"><label>Kategorie</label>
+            <select id="article-category" style="width:100%;">
+              <option>Patisserie</option>
+              <option>Kuchen &amp; Torten</option>
+              <option>Salzig</option>
+              <option>Sandwich</option>
+            </select>
+          </div>
+          <div id="article-msg" class="success-msg" style="margin-bottom:8px;"></div>
+          <button class="btn btn-primary" onclick="addArticle()">Artikel hinzufügen</button>
+        </div>
+        <div id="article-list" style="margin-top:18px;"></div>
+      </div>
+    </div>
+
     <div class="admin-panel" id="panel-settings">
       <div class="admin-section">
         <h3>Grundeinstellungen</h3>
@@ -698,6 +749,10 @@
       <label style="margin:0;color:var(--text);">🌴 Ferien-Tab aktiv</label>
       <input type="checkbox" id="ue-can-vacation" style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
     </div>
+    <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <label style="margin:0;color:var(--text);">📦 Bestellungen-Bereich (Bäckerei)</label>
+      <input type="checkbox" id="ue-can-orders" style="width:auto;accent-color:var(--accent);transform:scale(1.3);" />
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal('user-edit-modal')">Abbrechen</button>
       <button class="btn btn-primary" onclick="saveUserEdit()">Speichern</button>
@@ -787,6 +842,16 @@
 
   const DEPTS = ['Bäckerei','Laden','Tearoom','Dorfladen'];
 
+  // ── BESTELLUNGEN ──
+  const ORDER_CATEGORIES = ['Patisserie','Kuchen & Torten','Salzig','Sandwich'];
+  const ORDER_DEPTS = [
+    { key: 'dorfladen', name: 'Dorfladen' },
+    { key: 'laden-tearoom', name: 'Laden & Tearoom' }
+  ];
+  const ORDER_DEADLINE_MIN = 18 * 60; // 18:00 – ab dann verarbeitet die Bäckerei
+  let orderArticles = [];          // { id, name, category, active }
+  let ordersDate = null;           // aktuell angezeigtes Datum (YYYY-MM-DD)
+
   // ── FEIERTAGE BERN ──
   function getEaster(y) {
     const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
@@ -856,6 +921,285 @@
     return idx <= wpw;
   }
 
+  // ══════════════ BESTELLUNGEN ══════════════
+  function escHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function myDepts(){ return currentProfile?.departments || []; }
+  function myOrderDepts(){ return ORDER_DEPTS.filter(d => myDepts().includes(d.name)); }
+  function canViewOrdersArea(){
+    return isAdminOrLeitung() || (myDepts().includes('Bäckerei') && currentProfile?.canViewOrders === true);
+  }
+  function canAccessOrders(){ return myOrderDepts().length > 0 || canViewOrdersArea(); }
+
+  // ── Artikel laden/speichern ──
+  async function loadOrderArticles(){
+    try {
+      const snap = await getDoc(doc(db,'settings','orderArticles'));
+      orderArticles = snap.exists() ? (snap.data().articles || []) : [];
+    } catch(e){ console.error('Bestellartikel konnten nicht geladen werden:', e); orderArticles = []; }
+  }
+  async function saveOrderArticles(){
+    await setDoc(doc(db,'settings','orderArticles'), { articles: orderArticles });
+  }
+
+  // ── Artikel-Editor (Admin/Leitung) ──
+  window.loadArticles = async () => {
+    if(!isAdminOrLeitung()) return;
+    await loadOrderArticles();
+    renderArticleList();
+  };
+  function renderArticleList(){
+    const box = document.getElementById('article-list');
+    if(!box) return;
+    if(orderArticles.length === 0){ box.innerHTML = '<div class="empty-state">Noch keine Artikel angelegt.</div>'; return; }
+    let html = '';
+    for(const cat of ORDER_CATEGORIES){
+      const items = orderArticles.filter(a => a.category === cat);
+      if(items.length === 0) continue;
+      html += `<div class="order-cat-title">${escHtml(cat)}</div>`;
+      items.sort((a,b)=>a.name.localeCompare(b.name,'de'));
+      for(const a of items){
+        html += `<div class="article-row${a.active?'':' inactive'}">
+          <span class="order-name">${escHtml(a.name)}</span>
+          <span class="art-actions">
+            <button class="art-toggle${a.active?' on':''}" onclick="toggleArticle('${a.id}')">${a.active?'Aktiv':'Inaktiv'}</button>
+            <button class="art-del" onclick="deleteArticle('${a.id}')" title="Löschen">🗑</button>
+          </span>
+        </div>`;
+      }
+    }
+    box.innerHTML = html;
+  }
+  window.addArticle = async () => {
+    const nameEl = document.getElementById('article-name');
+    const catEl = document.getElementById('article-category');
+    const msg = document.getElementById('article-msg');
+    const name = nameEl.value.trim();
+    const category = catEl.value;
+    if(!name){ msg.style.color='var(--red)'; msg.textContent='Bitte einen Artikelnamen eingeben.'; return; }
+    if(orderArticles.some(a => a.name.toLowerCase() === name.toLowerCase() && a.category === category)){
+      msg.style.color='var(--red)'; msg.textContent='Diesen Artikel gibt es in dieser Kategorie bereits.'; return;
+    }
+    orderArticles.push({ id: 'a'+Date.now()+Math.floor(Math.random()*1000), name, category, active: true });
+    await saveOrderArticles();
+    nameEl.value='';
+    renderArticleList();
+    msg.style.color='var(--green)'; msg.textContent='✓ Artikel hinzugefügt.';
+    setTimeout(()=>msg.textContent='',2500);
+  };
+  window.toggleArticle = async (id) => {
+    const a = orderArticles.find(x=>x.id===id); if(!a) return;
+    a.active = !a.active;
+    await saveOrderArticles();
+    renderArticleList();
+  };
+  window.deleteArticle = async (id) => {
+    const a = orderArticles.find(x=>x.id===id); if(!a) return;
+    if(!confirm(`Artikel „${a.name}" wirklich löschen? Bereits gespeicherte Bestellungen bleiben unverändert.`)) return;
+    orderArticles = orderArticles.filter(x=>x.id!==id);
+    await saveOrderArticles();
+    renderArticleList();
+  };
+
+  // ── Bestellungen: laden & rendern ──
+  function orderDocId(dateKey, deptKey){ return `${dateKey}_${deptKey}`; }
+  async function getOrder(dateKey, deptKey){
+    const snap = await getDoc(doc(db,'orders', orderDocId(dateKey, deptKey)));
+    return snap.exists() ? snap.data() : null;
+  }
+  function fmtOrdersDate(key){
+    const d = new Date(key+'T12:00:00');
+    return d.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  }
+  function isOrderEditable(dateKey){
+    // nur heute, nur eingestempelt (Pause zählt), nur vor 18:00
+    if(dateKey !== todayKey()) return { ok:false, reason:'Vergangene Tage können nur angesehen werden.' };
+    if(nowMin() >= ORDER_DEADLINE_MIN) return { ok:false, reason:'Bestellschluss war um 18:00 Uhr – die Bäckerei verarbeitet die Bestellungen.' };
+    return { ok:true };
+  }
+  async function isClockedInNow(){
+    const snap = await getDoc(doc(db,'timeEntries',`${currentUser.uid}_${todayKey()}`));
+    if(!snap.exists()) return false;
+    const e = snap.data();
+    return !!e.startMin && !e.endMin; // eingestempelt, noch kein Feierabend (Pause zählt)
+  }
+
+  window.changeOrdersDate = (dir) => {
+    const d = new Date(ordersDate+'T12:00:00');
+    d.setDate(d.getDate()+dir);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(key > todayKey()) return; // nicht in die Zukunft
+    ordersDate = key;
+    renderOrders();
+  };
+
+  async function loadOrders(){
+    ordersDate = todayKey();
+    await loadOrderArticles();
+    renderOrders();
+  }
+
+  async function renderOrders(){
+    document.getElementById('orders-date-label').textContent = fmtOrdersDate(ordersDate);
+    document.getElementById('orders-next-btn').style.visibility = (ordersDate >= todayKey()) ? 'hidden' : 'visible';
+    const box = document.getElementById('orders-content');
+    box.innerHTML = '<div class="empty-state">Lade...</div>';
+
+    const sections = [];
+
+    // 1) Bearbeitbare Bestellformulare für Dorfladen-/L&T-Mitarbeitende
+    const editable = isOrderEditable(ordersDate);
+    const clockedIn = editable.ok ? await isClockedInNow() : false;
+    for(const dept of myOrderDepts()){
+      const order = await getOrder(ordersDate, dept.key);
+      sections.push(renderOrderForm(dept, order, editable, clockedIn));
+    }
+
+    // 2) Ansicht + Druck für Bäckerei (mit Haken) und Admin/Leitung
+    if(canViewOrdersArea()){
+      for(const dept of ORDER_DEPTS){
+        const order = await getOrder(ordersDate, dept.key);
+        sections.push(renderOrderView(dept, order));
+      }
+    }
+
+    box.innerHTML = sections.length ? sections.join('') : '<div class="empty-state">Kein Zugriff auf Bestellungen.</div>';
+  }
+
+  function renderOrderForm(dept, order, editable, clockedIn){
+    const savedItems = (order?.items) || [];
+    const qtyById = {}; savedItems.forEach(it => { if(it.id) qtyById[it.id] = it.qty; });
+    const disabled = !editable.ok || !clockedIn;
+
+    let hint = '';
+    if(!editable.ok){
+      hint = `<div class="order-hint locked">🔒 ${escHtml(editable.reason)}</div>`;
+    } else if(!clockedIn){
+      hint = `<div class="order-hint locked">🔒 Du musst eingestempelt sein, um die Bestellung zu bearbeiten.</div>`;
+    } else {
+      hint = `<div class="order-hint">Bearbeitbar bis 18:00 Uhr. Änderungen mit „Speichern" übernehmen.</div>`;
+    }
+
+    let html = `<div class="admin-section"><h3>📦 Bestellung ${escHtml(dept.name)}</h3>${hint}`;
+    for(const cat of ORDER_CATEGORIES){
+      const arts = orderArticles.filter(a => a.active && a.category === cat)
+        .sort((a,b)=>a.name.localeCompare(b.name,'de'));
+      if(arts.length === 0) continue;
+      html += `<div class="order-cat-title">${escHtml(cat)}</div>`;
+      for(const a of arts){
+        const val = qtyById[a.id] != null ? qtyById[a.id] : '';
+        html += `<div class="order-row">
+          <span class="order-name">${escHtml(a.name)}</span>
+          <input type="number" min="0" step="1" value="${val}" data-oid="${a.id}" data-oname="${escHtml(a.name)}" data-ocat="${escHtml(cat)}" ${disabled?'disabled':''} />
+        </div>`;
+      }
+    }
+    html += `<div class="order-cat-title">Freitext</div>
+      <textarea id="order-freetext-${dept.key}" rows="3" placeholder="Zusätzliche Positionen (frei eingeben)" ${disabled?'disabled':''} style="width:100%;">${escHtml(order?.freetext||'')}</textarea>`;
+
+    if(!disabled){
+      html += `<div id="order-msg-${dept.key}" class="success-msg" style="margin:10px 0;"></div>
+        <button class="btn btn-primary" onclick="saveOrder('${dept.key}')">Speichern</button>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  window.saveOrder = async (deptKey) => {
+    const dept = ORDER_DEPTS.find(d=>d.key===deptKey); if(!dept) return;
+    const editable = isOrderEditable(ordersDate);
+    if(!editable.ok){ alert(editable.reason); return; }
+    if(!(await isClockedInNow())){ alert('Du musst eingestempelt sein, um die Bestellung zu speichern.'); return; }
+
+    const items = [];
+    document.querySelectorAll(`#orders-content input[type=number][data-oid]`).forEach(inp => {
+      const qty = Number(inp.value);
+      if(qty > 0) items.push({ id: inp.dataset.oid, name: inp.dataset.oname, category: inp.dataset.ocat, qty });
+    });
+    const freetext = (document.getElementById(`order-freetext-${deptKey}`)?.value || '').trim();
+
+    await setDoc(doc(db,'orders', orderDocId(ordersDate, deptKey)), {
+      date: ordersDate,
+      department: dept.name,
+      departmentKey: deptKey,
+      items,
+      freetext,
+      updatedBy: currentUser.uid,
+      updatedByName: currentProfile?.name || '',
+      updatedAt: Date.now()
+    });
+    const msg = document.getElementById(`order-msg-${deptKey}`);
+    if(msg){ msg.style.color='var(--green)'; msg.textContent='✓ Bestellung gespeichert.'; setTimeout(()=>msg.textContent='',2500); }
+  };
+
+  function renderOrderView(dept, order){
+    const items = (order?.items) || [];
+    const freetext = order?.freetext || '';
+    let html = `<div class="admin-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <h3 style="margin:0;">📋 ${escHtml(dept.name)}</h3>`;
+    if(items.length > 0 || freetext){
+      html += `<button class="btn btn-secondary btn-sm" onclick="printOrder('${dept.key}')">🖨 Drucken</button>`;
+    }
+    html += `</div>`;
+
+    if(items.length === 0 && !freetext){
+      html += `<div class="empty-state">Keine Bestellung erfasst.</div></div>`;
+      return html;
+    }
+    for(const cat of ORDER_CATEGORIES){
+      const catItems = items.filter(it => it.category === cat).sort((a,b)=>a.name.localeCompare(b.name,'de'));
+      if(catItems.length === 0) continue;
+      html += `<div class="order-cat-title">${escHtml(cat)}</div>`;
+      for(const it of catItems){
+        html += `<div class="order-view-item"><span>${escHtml(it.name)}</span><span class="qty">${it.qty}</span></div>`;
+      }
+    }
+    if(freetext){
+      html += `<div class="order-cat-title">Freitext</div><div style="font-size:14px;white-space:pre-wrap;padding:6px 0;">${escHtml(freetext)}</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  window.printOrder = async (deptKey) => {
+    const dept = ORDER_DEPTS.find(d=>d.key===deptKey); if(!dept) return;
+    const order = await getOrder(ordersDate, deptKey);
+    const items = (order?.items) || [];
+    const freetext = order?.freetext || '';
+
+    let body = '';
+    for(const cat of ORDER_CATEGORIES){
+      const catItems = items.filter(it => it.category === cat).sort((a,b)=>a.name.localeCompare(b.name,'de'));
+      if(catItems.length === 0) continue;
+      body += `<h2>${escHtml(cat)}</h2><table>`;
+      for(const it of catItems){
+        body += `<tr><td class="n">${escHtml(it.name)}</td><td class="q">${it.qty}</td></tr>`;
+      }
+      body += `</table>`;
+    }
+    if(freetext){ body += `<h2>Freitext</h2><div class="ft">${escHtml(freetext)}</div>`; }
+    if(!body){ body = '<p>Keine Bestellung erfasst.</p>'; }
+
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Bestellung ${escHtml(dept.name)} ${escHtml(ordersDate)}</title>
+      <style>
+        body{font-family:'Century Gothic',Arial,sans-serif;color:#111;margin:28px;}
+        h1{font-size:22px;margin:0 0 2px;} .date{color:#555;margin-bottom:18px;font-size:14px;}
+        h2{font-size:15px;margin:18px 0 4px;border-bottom:1px solid #999;padding-bottom:2px;}
+        table{width:100%;border-collapse:collapse;} td{padding:4px 0;font-size:15px;border-bottom:1px solid #eee;}
+        td.q{text-align:right;font-weight:700;width:70px;} .ft{font-size:15px;white-space:pre-wrap;}
+        @media print{@page{margin:1.5cm;}}
+      </style></head><body>
+      <h1>Bestellung – ${escHtml(dept.name)}</h1>
+      <div class="date">${escHtml(fmtOrdersDate(ordersDate))}</div>
+      ${body}
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>{ w.print(); }, 300);
+  };
+
+
 
   function updateClock(){const n=new Date();document.getElementById('live-clock').textContent=n.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});document.getElementById('live-date').textContent=n.toLocaleDateString('de-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
   setInterval(updateClock,1000);updateClock();
@@ -881,6 +1225,9 @@
       // Show/hide vacation tab based on profile
       document.getElementById('nav-vacation').style.display =
         (currentProfile.canUseVacation !== false) ? 'block' : 'none';
+      // Show/hide Bestellungen tab
+      document.getElementById('nav-orders').style.display =
+        canAccessOrders() ? 'block' : 'none';
       if (isAdmin() || isLeitung()) {
         const navBtn = document.getElementById('nav-admin');
         navBtn.style.display = 'block';
@@ -1016,6 +1363,7 @@
     if(page==='overview')loadOverview();
     if(page==='vacation'){loadVacationList();loadWishList();}
     if(page==='schedule')loadSchedule();
+    if(page==='orders')loadOrders();
     if(page==='admin'){loadAdminUsers();loadLiveStamps();}
   };
 
@@ -1048,6 +1396,7 @@
     if(id==='panel-requests')loadVacationRequests('pending');
     if(id==='panel-schedule-admin'){populateShiftUsers();loadAdminSchedule();}
     if(id==='panel-sick'){populateSickSelects();loadSickList();}
+    if(id==='panel-articles')loadArticles();
     if(id==='panel-year')initYearFilter();
   };
 
@@ -2152,6 +2501,7 @@
     document.getElementById('ue-enddate').value=u.endDate||'';
     document.querySelectorAll('#ue-dept-group input[type=checkbox]').forEach(cb=>{cb.checked=(u.departments||[]).includes(cb.value);cb.closest('.dept-check').classList.toggle('checked',cb.checked);});
     document.getElementById('ue-can-vacation').checked = u.canUseVacation !== false;
+    document.getElementById('ue-can-orders').checked = u.canViewOrders === true;
     document.getElementById('ue-role-group').style.display = isAdmin() ? 'block' : 'none';
     if(document.getElementById('ue-role'))document.getElementById('ue-role').value = u.role || 'employee';
     document.querySelector(`input[name="ue-emp-type"][value="${empType}"]`).checked=true;
@@ -2162,6 +2512,7 @@
     const uid=document.getElementById('ue-uid').value;
     const depts=[...document.querySelectorAll('#ue-dept-group input[type=checkbox]:checked')].map(cb=>cb.value);
     const canUseVacation=document.getElementById('ue-can-vacation').checked;
+    const canViewOrders=document.getElementById('ue-can-orders').checked;
     const empType=document.querySelector('input[name="ue-emp-type"]:checked').value;
     const isStunden = empType === 'stundenlöhner';
     const updateData={
@@ -2173,7 +2524,7 @@
       vacationDaysPerYear: Number(document.getElementById('ue-vacation').value),
       startDate: document.getElementById('ue-startdate').value || null,
       endDate: document.getElementById('ue-enddate').value || null,
-      departments:depts, canUseVacation: canUseVacation,
+      departments:depts, canUseVacation: canUseVacation, canViewOrders: canViewOrders,
       employmentType:empType
     };
     if (isAdmin() && document.getElementById('ue-role')) updateData.role = document.getElementById('ue-role').value;
